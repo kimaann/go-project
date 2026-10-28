@@ -1,0 +1,251 @@
+{{define "content"}}
+<style>
+    /* Hero */
+    .hero {
+        background: linear-gradient(135deg, var(--espresso) 0%, var(--dark-roast) 50%, var(--medium) 100%);
+        border-radius: 20px;
+        padding: 60px 56px;
+        margin-bottom: 40px;
+        position: relative;
+        overflow: hidden;
+    }
+    .hero::before {
+        content: "☕";
+        position: absolute;
+        right: 40px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 120px;
+        opacity: 0.08;
+        pointer-events: none;
+    }
+    .hero-eyebrow {
+        font-size: 12px;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: var(--caramel);
+        font-weight: 700;
+        margin-bottom: 12px;
+    }
+    .hero h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 48px;
+        font-weight: 700;
+        color: var(--cream);
+        line-height: 1.15;
+        margin-bottom: 16px;
+    }
+    .hero h1 em {
+        font-style: italic;
+        color: var(--caramel);
+    }
+    .hero-desc {
+        color: rgba(245,230,208,0.75);
+        font-size: 16px;
+        max-width: 480px;
+        margin-bottom: 32px;
+        line-height: 1.7;
+    }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* Stats strip */
+    .stats-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 40px;
+    }
+    .stat-card {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: transform .2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-icon { font-size: 28px; }
+    .stat-value {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--dark-roast);
+        line-height: 1;
+    }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Section */
+    .home-section { margin-bottom: 40px; }
+    .home-section-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+    .home-section-header h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        color: var(--dark-roast);
+    }
+    .see-all {
+        font-size: 13px;
+        color: var(--caramel);
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .see-all:hover { text-decoration: underline; }
+
+    /* Featured menu cards */
+    .featured-card {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: var(--shadow);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: transform .2s, box-shadow .2s;
+    }
+    .featured-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-lg);
+    }
+    .featured-icon { font-size: 36px; margin-bottom: 4px; }
+    .featured-name { font-weight: 700; color: var(--dark-roast); font-size: 15px; }
+    .featured-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    .featured-price { font-weight: 700; color: var(--caramel); font-size: 15px; margin-top: auto; }
+
+    /* Promo mini card */
+    .promo-mini {
+        background: linear-gradient(135deg, var(--dark-roast), var(--medium));
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        color: var(--cream);
+        box-shadow: var(--shadow);
+        transition: transform .2s;
+    }
+    .promo-mini:hover { transform: translateY(-2px); }
+    .promo-mini-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+    .promo-mini-desc { font-size: 13px; opacity: 0.75; line-height: 1.5; }
+    .promo-mini-code {
+        display: inline-block;
+        margin-top: 10px;
+        background: rgba(196,134,42,0.3);
+        border: 1px dashed var(--caramel);
+        color: var(--caramel);
+        font-size: 12px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 6px;
+        letter-spacing: 1px;
+    }
+
+    @media (max-width: 900px) {
+        .stats-strip { grid-template-columns: repeat(2, 1fr); }
+        .hero h1 { font-size: 34px; }
+        .hero { padding: 40px 32px; }
+    }
+</style>
+
+<!-- Hero -->
+<section class="hero">
+    <p class="hero-eyebrow">☕ &nbsp; Kopi Terbaik Indonesia</p>
+    <h1>Setiap Tegukan<br>adalah <em>Pengalaman</em></h1>
+    <p class="hero-desc">
+        Dari biji kopi pilihan petani lokal hingga ke cangkir kamu —
+        Kopiku hadir di 6 kota besar dengan rasa yang konsisten dan suasana yang hangat.
+    </p>
+    <div class="hero-actions">
+        <a href="/menu"   class="btn btn-primary">Lihat Menu ☕</a>
+        <a href="/cabang" class="btn btn-outline" style="color:var(--cream);border-color:rgba(245,230,208,0.4);">Temukan Cabang 📍</a>
+    </div>
+</section>
+
+<!-- Stats -->
+<div class="stats-strip">
+    <div class="stat-card">
+        <span class="stat-icon">📍</span>
+        <div>
+            <div class="stat-value">6</div>
+            <div class="stat-label">Cabang Aktif</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">📋</span>
+        <div>
+            <div class="stat-value">14</div>
+            <div class="stat-label">Item Menu</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">🎁</span>
+        <div>
+            <div class="stat-value">4</div>
+            <div class="stat-label">Promo Aktif</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <span class="stat-icon">⭐</span>
+        <div>
+            <div class="stat-value">4</div>
+            <div class="stat-label">Tier Poin</div>
+        </div>
+    </div>
+</div>
+
+<!-- Featured Menu -->
+<div class="home-section">
+    <div class="home-section-header">
+        <h2>Menu Andalan</h2>
+        <a href="/menu" class="see-all">Lihat semua →</a>
+    </div>
+    <div class="grid-4">
+        <div class="featured-card">
+            <div class="featured-icon">☕</div>
+            <div class="featured-name">Cold Brew</div>
+            <div class="featured-desc">Diseduh dingin 16 jam, smooth dan kaya rasa</div>
+            <div class="featured-price">Rp38.000</div>
+        </div>
+        <div class="featured-card">
+            <div class="featured-icon">☕</div>
+            <div class="featured-name">Caramel Latte</div>
+            <div class="featured-desc">Latte manis dengan drizzle karamel premium</div>
+            <div class="featured-price">Rp40.000</div>
+        </div>
+        <div class="featured-card">
+            <div class="featured-icon">🍵</div>
+            <div class="featured-name">Matcha Latte</div>
+            <div class="featured-desc">Matcha premium Jepang dengan susu oat</div>
+            <div class="featured-price">Rp38.000</div>
+        </div>
+        <div class="featured-card">
+            <div class="featured-icon">🥑</div>
+            <div class="featured-name">Avocado Toast</div>
+            <div class="featured-desc">Sourdough panggang, avocado, telur microgreens</div>
+            <div class="featured-price">Rp48.000</div>
+        </div>
+    </div>
+</div>
+
+<!-- Promo Mini -->
+<div class="home-section">
+    <div class="home-section-header">
+        <h2>Promo Terkini</h2>
+        <a href="/promo" class="see-all">Lihat semua →</a>
+    </div>
+    <div class="grid-2">
+        <div class="promo-mini">
+            <div class="promo-mini-title">🔥 Buy 1 Get 1 Cold Brew</div>
+            <div class="promo-mini-desc">Setiap Selasa & Rabu, beli satu Cold Brew gratis satu lagi!</div>
+            <div class="promo-mini-code">COLDBREW2</div>
+        </div>
+        <div class="promo-mini">
+            <div class="promo-mini-title">✨ Diskon 30% Menu Baru</div>
+            <div class="promo-mini-desc">Coba menu-menu terbaru kami dengan diskon spesial 30%.</div>
+            <div class="promo-mini-code">NEWMENU30</div>
+        </div>
+    </div>
+</div>
+{{end}}

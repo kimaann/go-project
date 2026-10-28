@@ -1,0 +1,55 @@
+{{define "header"}}
+<style>
+    .header-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+    }
+    .header-logo {
+        font-size: 28px;
+    }
+    .header-name {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        font-weight: 700;
+        color: #F5E6D0;
+        letter-spacing: 0.5px;
+    }
+    .header-tagline {
+        font-size: 11px;
+        color: rgba(196,134,42,0.9);
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-weight: 500;
+    }
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .header-poin-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(196,134,42,0.15);
+        border: 1px solid rgba(196,134,42,0.4);
+        border-radius: 20px;
+        padding: 6px 16px;
+        color: #C4862A;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: default;
+    }
+</style>
+<a href="/" class="header-brand">
+    <span class="header-logo">☕</span>
+    <div>
+        <div class="header-name">Kopiku</div>
+        <div class="header-tagline">Premium Coffee Experience</div>
+    </div>
+</a>
+<div class="header-right">
+    <div class="header-poin-badge">⭐ 6 Cabang Aktif</div>
+</div>
+{{end}}

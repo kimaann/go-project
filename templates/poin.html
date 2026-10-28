@@ -1,0 +1,240 @@
+{{define "content"}}
+<style>
+    .page-header { margin-bottom: 32px; }
+    .page-header h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 32px;
+        color: var(--dark-roast);
+        margin-bottom: 6px;
+    }
+    .page-header p { color: var(--text-muted); }
+
+    /* How it works banner */
+    .how-banner {
+        background: linear-gradient(135deg, var(--espresso), var(--dark-roast));
+        border-radius: var(--radius);
+        padding: 32px 36px;
+        margin-bottom: 36px;
+        color: var(--cream);
+    }
+    .how-banner h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        margin-bottom: 20px;
+        color: var(--caramel);
+    }
+    .how-steps {
+        display: grid;
+        grid-template-columns: repeat(4,1fr);
+        gap: 20px;
+    }
+    .how-step { text-align: center; }
+    .how-step-num {
+        width: 40px;
+        height: 40px;
+        background: var(--caramel);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 16px;
+        margin: 0 auto 10px;
+    }
+    .how-step-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .how-step-desc  { font-size: 12px; opacity: 0.7; line-height: 1.5; }
+
+    /* Tier cards */
+    .tier-section h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        color: var(--dark-roast);
+        margin-bottom: 20px;
+    }
+    .tier-grid {
+        display: grid;
+        grid-template-columns: repeat(4,1fr);
+        gap: 20px;
+        margin-bottom: 40px;
+    }
+    .tier-card {
+        border-radius: var(--radius);
+        padding: 28px 20px 24px;
+        text-align: center;
+        box-shadow: var(--shadow);
+        transition: transform .2s, box-shadow .2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        position: relative;
+        overflow: hidden;
+    }
+    .tier-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+    }
+    .tier-card.bronze { background: linear-gradient(160deg, #fdf6ed 0%, #f5e0c0 100%); border-top: 4px solid #cd7f32; }
+    .tier-card.silver { background: linear-gradient(160deg, #f5f5f5 0%, #e0e0e0 100%); border-top: 4px solid #9e9e9e; }
+    .tier-card.gold   { background: linear-gradient(160deg, #fffde7 0%, #fff8d0 100%); border-top: 4px solid #f9a825; }
+    .tier-card.platinum { background: linear-gradient(160deg, #e8eaf6 0%, #c5cae9 100%); border-top: 4px solid #5c6bc0; }
+
+    .tier-icon { font-size: 40px; }
+    .tier-name {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--dark-roast);
+    }
+    .tier-min {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--text-muted);
+        letter-spacing: 0.5px;
+    }
+    .tier-divider {
+        width: 40px;
+        height: 2px;
+        background: currentColor;
+        opacity: 0.2;
+        border-radius: 2px;
+    }
+    .tier-benefit {
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.6;
+        text-align: center;
+    }
+
+    /* Earning table */
+    .earn-section h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        color: var(--dark-roast);
+        margin-bottom: 16px;
+    }
+    .earn-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        background: var(--white);
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    .earn-table th {
+        background: var(--dark-roast);
+        color: var(--cream);
+        padding: 14px 20px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+    }
+    .earn-table td {
+        padding: 13px 20px;
+        border-bottom: 1px solid var(--cream);
+        color: var(--text-dark);
+    }
+    .earn-table tbody tr:last-child td { border-bottom: none; }
+    .earn-table tbody tr:hover { background: var(--milk); }
+    .earn-point { font-weight: 700; color: var(--caramel); }
+
+    @media (max-width:900px) {
+        .tier-grid, .how-steps { grid-template-columns: repeat(2,1fr); }
+    }
+    @media (max-width:580px) {
+        .tier-grid, .how-steps { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="page-header">
+    <h1>⭐ Sistem Poin Kopiku</h1>
+    <p>Kumpulkan poin dari setiap transaksi dan nikmati keuntungan eksklusif di semua cabang</p>
+</div>
+
+<!-- How it works -->
+<div class="how-banner">
+    <h2>Cara Kerja Sistem Poin</h2>
+    <div class="how-steps">
+        <div class="how-step">
+            <div class="how-step-num">1</div>
+            <div class="how-step-title">Daftar Akun</div>
+            <div class="how-step-desc">Buat akun Kopiku Member gratis di kasir atau aplikasi</div>
+        </div>
+        <div class="how-step">
+            <div class="how-step-num">2</div>
+            <div class="how-step-title">Transaksi</div>
+            <div class="how-step-desc">Setiap Rp 1.000 yang kamu bayar = 1 poin otomatis</div>
+        </div>
+        <div class="how-step">
+            <div class="how-step-num">3</div>
+            <div class="how-step-title">Naik Level</div>
+            <div class="how-step-desc">Kumpulkan poin dan raih tier Bronze → Platinum</div>
+        </div>
+        <div class="how-step">
+            <div class="how-step-num">4</div>
+            <div class="how-step-title">Tukar Reward</div>
+            <div class="how-step-desc">Tukarkan poin dengan minuman gratis, diskon & hadiah eksklusif</div>
+        </div>
+    </div>
+</div>
+
+<!-- Tier cards -->
+<div class="tier-section">
+    <h2>Level Keanggotaan</h2>
+    <div class="tier-grid">
+        {{range .Tiers}}
+        <div class="tier-card {{if eq .Name "Bronze"}}bronze{{end}}{{if eq .Name "Silver"}}silver{{end}}{{if eq .Name "Gold"}}gold{{end}}{{if eq .Name "Platinum"}}platinum{{end}}">
+            <div class="tier-icon">{{.Icon}}</div>
+            <div class="tier-name">{{.Name}}</div>
+            <div class="tier-min">
+                {{if eq .MinPoint 0}}Mulai dari 0 poin{{else}}≥ {{.MinPoint}} poin{{end}}
+            </div>
+            <div class="tier-divider"></div>
+            <div class="tier-benefit">{{.Benefit}}</div>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<!-- Earning table -->
+<div class="earn-section">
+    <h2>Tabel Penukaran Poin</h2>
+    <table class="earn-table">
+        <thead>
+            <tr>
+                <th>Jumlah Poin</th>
+                <th>Tukar Dengan</th>
+                <th>Berlaku Di</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><span class="earn-point">100 poin</span></td>
+                <td>Diskon Rp 5.000 untuk pembelian apapun</td>
+                <td>Semua Cabang</td>
+            </tr>
+            <tr>
+                <td><span class="earn-point">250 poin</span></td>
+                <td>Gratis upgrade size (Regular → Large)</td>
+                <td>Semua Cabang</td>
+            </tr>
+            <tr>
+                <td><span class="earn-point">500 poin</span></td>
+                <td>1 minuman gratis (max Rp 35.000)</td>
+                <td>Semua Cabang</td>
+            </tr>
+            <tr>
+                <td><span class="earn-point">1.000 poin</span></td>
+                <td>1 minuman + makanan gratis (max Rp 80.000)</td>
+                <td>Semua Cabang</td>
+            </tr>
+            <tr>
+                <td><span class="earn-point">2.500 poin</span></td>
+                <td>Coffee Experience Paket Duo (2 minuman + 2 makanan)</td>
+                <td>Cabang Tertentu</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+{{end}}

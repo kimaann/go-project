@@ -1,0 +1,90 @@
+{{define "sidebar"}}
+<style>
+    .nav-section-label {
+        padding: 0 24px 10px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: rgba(196,134,42,0.6);
+    }
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 24px;
+        color: rgba(245,230,208,0.7);
+        font-size: 14px;
+        font-weight: 500;
+        border-left: 3px solid transparent;
+        transition: all .18s ease;
+        text-decoration: none;
+        position: relative;
+    }
+    .nav-item:hover {
+        background: rgba(196,134,42,0.1);
+        border-left-color: rgba(196,134,42,0.5);
+        color: #F5E6D0;
+        text-decoration: none;
+    }
+    .nav-item.active {
+        background: rgba(196,134,42,0.15);
+        border-left-color: #C4862A;
+        color: #F5E6D0;
+        font-weight: 600;
+    }
+    .nav-icon { font-size: 18px; width: 22px; text-align: center; }
+    .nav-badge {
+        margin-left: auto;
+        background: #C4862A;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 10px;
+    }
+    .nav-divider {
+        margin: 16px 24px;
+        border: none;
+        border-top: 1px solid rgba(196,134,42,0.15);
+    }
+    .sidebar-bottom {
+        margin-top: auto;
+        padding: 24px;
+        border-top: 1px solid rgba(196,134,42,0.15);
+    }
+    .sidebar-bottom p {
+        font-size: 12px;
+        color: rgba(245,230,208,0.3);
+        line-height: 1.5;
+    }
+</style>
+
+<p class="nav-section-label">Navigasi</p>
+
+<a href="/"       class="nav-item {{if eq .ActiveNav "home"}}active{{end}}">
+    <span class="nav-icon">🏠</span> Beranda
+</a>
+<a href="/menu"   class="nav-item {{if eq .ActiveNav "menu"}}active{{end}}">
+    <span class="nav-icon">📋</span> Menu
+</a>
+
+<hr class="nav-divider">
+<p class="nav-section-label">Layanan</p>
+
+<a href="/cabang" class="nav-item {{if eq .ActiveNav "cabang"}}active{{end}}">
+    <span class="nav-icon">📍</span> Cabang
+    <span class="nav-badge">6</span>
+</a>
+<a href="/promo"  class="nav-item {{if eq .ActiveNav "promo"}}active{{end}}">
+    <span class="nav-icon">🎁</span> Promo
+    <span class="nav-badge">4</span>
+</a>
+<a href="/poin"   class="nav-item {{if eq .ActiveNav "poin"}}active{{end}}">
+    <span class="nav-icon">⭐</span> Sistem Poin
+</a>
+
+<div class="sidebar-bottom">
+    <p>☕ Kopiku &copy; 2026<br>All rights reserved.</p>
+</div>
+{{end}}

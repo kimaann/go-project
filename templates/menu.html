@@ -1,0 +1,131 @@
+{{define "content"}}
+<style>
+    .menu-header { margin-bottom: 32px; }
+    .menu-header h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 32px;
+        color: var(--dark-roast);
+        margin-bottom: 6px;
+    }
+    .menu-header p { color: var(--text-muted); }
+
+    /* Category tabs */
+    .cat-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 28px;
+        flex-wrap: wrap;
+    }
+    .cat-tab {
+        padding: 8px 20px;
+        border-radius: 24px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 2px solid var(--caramel);
+        color: var(--caramel);
+        background: transparent;
+        font-family: 'Inter', sans-serif;
+        transition: all .18s;
+        text-decoration: none;
+    }
+    .cat-tab.active, .cat-tab:hover {
+        background: var(--caramel);
+        color: var(--white);
+    }
+
+    /* Menu category section */
+    .menu-category { margin-bottom: 40px; }
+    .menu-category h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px;
+        color: var(--dark-roast);
+        margin-bottom: 16px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid var(--cream);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .menu-category h2 span { font-size: 22px; }
+
+    /* Menu item card */
+    .menu-card {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        box-shadow: var(--shadow);
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        transition: transform .18s, box-shadow .18s;
+    }
+    .menu-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-lg);
+    }
+    .menu-card-icon {
+        font-size: 32px;
+        flex-shrink: 0;
+        width: 48px;
+        height: 48px;
+        background: var(--milk);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .menu-card-body { flex: 1; }
+    .menu-card-name {
+        font-weight: 700;
+        color: var(--dark-roast);
+        font-size: 15px;
+        margin-bottom: 3px;
+    }
+    .menu-card-desc {
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+    .menu-card-price {
+        font-weight: 700;
+        color: var(--caramel);
+        font-size: 15px;
+        flex-shrink: 0;
+        align-self: center;
+    }
+
+    .menu-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+    @media (max-width: 700px) { .menu-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="menu-header">
+    <h1>📋 Menu Kami</h1>
+    <p>Pilihan minuman dan makanan berkualitas dari bahan-bahan terpilih</p>
+</div>
+
+{{range .Categories}}
+<div class="menu-category">
+    <h2>
+        {{if eq . "Kopi"}}<span>☕</span> Kopi{{end}}
+        {{if eq . "Non-Kopi"}}<span>🍵</span> Non-Kopi{{end}}
+        {{if eq . "Makanan"}}<span>🍽️</span> Makanan{{end}}
+    </h2>
+    <div class="menu-grid">
+        {{$cat := .}}
+        {{range $.Items}}
+            {{if eq .Category $cat}}
+            <div class="menu-card">
+                <div class="menu-card-icon">{{.Icon}}</div>
+                <div class="menu-card-body">
+                    <div class="menu-card-name">{{.Name}}</div>
+                    <div class="menu-card-desc">{{.Desc}}</div>
+                </div>
+                <div class="menu-card-price">{{rupiah .Price}}</div>
+            </div>
+            {{end}}
+        {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}
