@@ -1,9 +1,16 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
+	"math/rand"
 	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 // ===== Data Structs =====
@@ -31,7 +38,8 @@ type Promo struct {
 	Code      string
 	Until     string
 	Badge     string
-	BadgeType string // "hot" | "new" | "limited"
+	BadgeType string
+	Discount  int
 }
 
 type PointTier struct {
@@ -41,9 +49,56 @@ type PointTier struct {
 	Icon     string
 }
 
+type User struct {
+	ID       string
+	Username string
+	Password string
+	Name     string
+	Role     string
+	Points   int
+}
+
+type CartItem struct {
+	Item     MenuItem
+	Qty      int
+	Subtotal int
+}
+
+type Order struct {
+	ID         string
+	UserID     string
+	Username   string
+	UserName   string
+	Branch     string
+	Items      []CartItem
+	PromoCode  string
+	PromoTitle string
+	Discount   int
+	Subtotal   int
+	Total      int
+	Status     string
+	PayMethod  string
+	CreatedAt  time.Time
+	PaidAt     *time.Time
+}
+
+type Session struct {
+	UserID    string
+	Username  string
+	Role      string
+	Name      string
+	CartItems []CartItem
+	Branch    string
+	PromoCode string
+}
+
+// ===== Page Data Structs =====
+
 type PageData struct {
 	Title     string
 	ActiveNav string
+	Session   *Session
+	Flash     string
 }
 
 type MenuPage struct {
@@ -65,6 +120,40 @@ type PromoPage struct {
 type PointPage struct {
 	PageData
 	Tiers []PointTier
+}
+
+type OrderPage struct {
+	PageData
+	Branches  []Branch
+	Promos    []Promo
+	CartItems []CartItem
+	Subtotal  int
+	Discount  int
+	Total     int
+	Branch    string
+	PromoCode string
+}
+
+type PaymentPage struct {
+	PageData
+	Order *Order
+}
+
+type PromoUsageStat struct {
+	Code      string
+	Title     string
+	UsedBy    string
+	OrderID   string
+	Discount  int
+	CreatedAt time.Time
+}
+
+type AdminPage struct {
+	PageData
+	Orders     []Order
+	PromoUsage []PromoUsageStat
+	TotalRev   int
+	TodayRev   int
 }
 
 // ===== Static Data =====
@@ -141,39 +230,25 @@ var branches = []Branch{
 }
 
 var promos = []Promo{
-	{
-		Title:     "Buy 1 Get 1 Cold Brew",
-		Desc:      "Setiap Selasa & Rabu, beli satu Cold Brew gratis satu lagi untuk teman kamu!",
-		Code:      "COLDBREW2",
-		Until:     "31 Desember 2026",
-		Badge:     "🔥 Hot Deal",
-		BadgeType: "hot",
-	},
-	{
-		Title:     "Diskon 30% Menu Baru",
-		Desc:      "Coba menu-menu terbaru kami dengan diskon spesial 30% selama bulan November.",
-		Code:      "NEWMENU30",
-		Until:     "30 November 2026",
-		Badge:     "✨ New",
-		BadgeType: "new",
-	},
-	{
-		Title:     "Free Croissant setiap Pagi",
-		Desc:      "Order minuman apapun sebelum jam 09.00 dan dapatkan croissant gratis!",
-		Code:      "EARLYBIRD",
-		Until:     "31 Oktober 2026",
-		Badge:     "⏰ Limited",
-		BadgeType: "limited",
-	},
-	{
-		Title:     "Ulang Tahun? Kopi Gratis!",
-		Desc:      "Tunjukkan KTP di hari ulang tahunmu dan dapatkan minuman pilihan gratis.",
-		Code:      "HAPPYBDAY",
-		Until:     "Berlaku Sepanjang Tahun",
-		Badge:     "🎂 Spesial",
-		BadgeType: "new",
-	},
+	{Title: "Buy 1 Get 1 Cold Brew", Desc: "Setiap Selasa & Rabu, beli satu Cold Brew gratis satu lagi!", Code: "COLDBREW2", Until: "31 Desember 2026", Badge: "🔥 Hot Deal", BadgeType: "hot", Discount: 50},
+	{Title: "Diskon 30% Menu Baru", Desc: "Coba menu-menu terbaru kami dengan diskon spesial 30%.", Code: "NEWMENU30", Until: "30 November 2026", Badge: "✨ New", BadgeType: "new", Discount: 30},
+	{Title: "Free Croissant setiap Pagi", Desc: "Order minuman apapun sebelum jam 09.00 dan dapatkan croissant gratis!", Code: "EARLYBIRD", Until: "31 Oktober 2026", Badge: "⏰ Limited", BadgeType: "limited", Discount: 20},
+	{Title: "Ulang Tahun? Kopi Gratis!", Desc: "Tunjukkan KTP di hari ulang tahunmu dan dapatkan minuman gratis.", Code: "HAPPYBDAY", Until: "Berlaku Sepanjang Tahun", Badge: "🎂 Spesial", BadgeType: "new", Discount: 100},
 }
+
+// ===== In-Memory Storage =====
+
+var (
+	mu       sync.RWMutex
+	sessions = map[string]*Session{}
+	orders   = []Order{}
+	users    = []User{
+		{ID: "u1", Username: "admin", Password: "admin123", Name: "Administrator", Role: "admin"},
+		{ID: "u2", Username: "kasir", Password: "kasir123", Name: "Kasir Sudirman", Role: "kasir"},
+		{ID: "u3", Username: "user1", Password: "user123", Name: "Budi Santoso", Role: "user", Points: 350},
+		{ID: "u4", Username: "user2", Password: "user456", Name: "Siti Rahayu", Role: "user", Points: 1200},
+	}
+)
 
 var pointTiers = []PointTier{
 	{
@@ -224,9 +299,20 @@ var funcs = template.FuncMap{
 		}
 		return "Rp" + result
 	},
+	"add": func(a, b int) int { return a + b },
+	"cartLen": func(items []CartItem) int {
+		total := 0
+		for _, c := range items {
+			total += c.Qty
+		}
+		return total
+	},
+	"formatTime": func(t time.Time) string {
+		return t.Format("02 Jan 2006, 15:04")
+	},
 }
 
-func parseHalaman(files ...string) *template.Template {
+func parsePage(files ...string) *template.Template {
 	allFiles := append([]string{
 		"templates/layout.html",
 		"templates/header.html",
@@ -236,57 +322,460 @@ func parseHalaman(files ...string) *template.Template {
 	return template.Must(template.New("layout").Funcs(funcs).ParseFiles(allFiles...))
 }
 
+func parseSimple(name string, files ...string) *template.Template {
+	return template.Must(template.New(name).Funcs(funcs).ParseFiles(files...))
+}
+
 var (
-	tplHome   = parseHalaman("templates/home.html")
-	tplMenu   = parseHalaman("templates/menu.html")
-	tplCabang = parseHalaman("templates/cabang.html")
-	tplPromo  = parseHalaman("templates/promo.html")
-	tplPoin   = parseHalaman("templates/poin.html")
+	tplHome    = parsePage("templates/home.html")
+	tplMenu    = parsePage("templates/menu.html")
+	tplCabang  = parsePage("templates/cabang.html")
+	tplPromo   = parsePage("templates/promo.html")
+	tplPoin    = parsePage("templates/poin.html")
+	tplLogin   = parseSimple("login.html", "templates/login.html")
+	tplOrder   = parsePage("templates/order.html")
+	tplPayment = parsePage("templates/payment.html")
+	tplAdmin   = parseSimple("admin.html", "templates/admin.html")
 )
 
-// ===== Handlers =====
+// ===== Helper Functions =====
+
+func randID() string {
+	return fmt.Sprintf("%06d", rand.Intn(999999)+1)
+}
+
+func getSession(r *http.Request) *Session {
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		return nil
+	}
+	mu.RLock()
+	defer mu.RUnlock()
+	return sessions[cookie.Value]
+}
+
+func findUser(username, password string) *User {
+	for i := range users {
+		if users[i].Username == username && users[i].Password == password {
+			return &users[i]
+		}
+	}
+	return nil
+}
+
+func findPromo(code string) *Promo {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	for i := range promos {
+		if promos[i].Code == code {
+			return &promos[i]
+		}
+	}
+	return nil
+}
+
+func cartSubtotal(items []CartItem) int {
+	total := 0
+	for _, c := range items {
+		total += c.Subtotal
+	}
+	return total
+}
+
+func requireLogin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if getSession(r) == nil {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func addFlash(w http.ResponseWriter, msg string) {
+	http.SetCookie(w, &http.Cookie{Name: "flash", Value: msg, Path: "/", MaxAge: 5})
+}
+
+func getFlash(w http.ResponseWriter, r *http.Request) string {
+	c, err := r.Cookie("flash")
+	if err != nil {
+		return ""
+	}
+	http.SetCookie(w, &http.Cookie{Name: "flash", Value: "", Path: "/", MaxAge: -1})
+	return c.Value
+}
+
+// ===== Public Handlers =====
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
-	tplHome.ExecuteTemplate(w, "layout", PageData{Title: "Beranda", ActiveNav: "home"})
+	sess := getSession(r)
+	tplHome.ExecuteTemplate(w, "layout", PageData{Title: "Beranda", ActiveNav: "home", Session: sess})
 }
 
 func menuHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
 	tplMenu.ExecuteTemplate(w, "layout", MenuPage{
-		PageData:   PageData{Title: "Menu", ActiveNav: "menu"},
+		PageData:   PageData{Title: "Menu", ActiveNav: "menu", Session: sess},
 		Categories: []string{"Kopi", "Non-Kopi", "Makanan"},
 		Items:      menuItems,
 	})
 }
 
 func cabangHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
 	tplCabang.ExecuteTemplate(w, "layout", BranchPage{
-		PageData: PageData{Title: "Cabang", ActiveNav: "cabang"},
+		PageData: PageData{Title: "Cabang", ActiveNav: "cabang", Session: sess},
 		Branches: branches,
 	})
 }
 
 func promoHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
 	tplPromo.ExecuteTemplate(w, "layout", PromoPage{
-		PageData: PageData{Title: "Promo", ActiveNav: "promo"},
+		PageData: PageData{Title: "Promo", ActiveNav: "promo", Session: sess},
 		Promos:   promos,
 	})
 }
 
 func poinHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
 	tplPoin.ExecuteTemplate(w, "layout", PointPage{
-		PageData: PageData{Title: "Sistem Poin", ActiveNav: "poin"},
+		PageData: PageData{Title: "Sistem Poin", ActiveNav: "poin", Session: sess},
 		Tiers:    pointTiers,
 	})
 }
 
+// ===== Auth Handlers =====
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	if getSession(r) != nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	flash := getFlash(w, r)
+	if r.Method == http.MethodGet {
+		tplLogin.ExecuteTemplate(w, "login.html", map[string]string{"Flash": flash})
+		return
+	}
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	u := findUser(username, password)
+	if u == nil {
+		addFlash(w, "Username atau password salah.")
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+	sessionID := fmt.Sprintf("%s-%d", randID(), time.Now().UnixNano())
+	sess := &Session{UserID: u.ID, Username: u.Username, Role: u.Role, Name: u.Name}
+	mu.Lock()
+	sessions[sessionID] = sess
+	mu.Unlock()
+	http.SetCookie(w, &http.Cookie{Name: "session_id", Value: sessionID, Path: "/", MaxAge: 86400})
+	if u.Role == "admin" || u.Role == "kasir" {
+		http.Redirect(w, r, "/admin", http.StatusFound)
+	} else {
+		http.Redirect(w, r, "/", http.StatusFound)
+	}
+}
+
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_id")
+	if err == nil {
+		mu.Lock()
+		delete(sessions, cookie.Value)
+		mu.Unlock()
+	}
+	http.SetCookie(w, &http.Cookie{Name: "session_id", Value: "", Path: "/", MaxAge: -1})
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
+// ===== Order Handlers (User) =====
+
+func orderHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	subtotal := cartSubtotal(sess.CartItems)
+	discount := 0
+	promoTitle := ""
+	if sess.PromoCode != "" {
+		p := findPromo(sess.PromoCode)
+		if p != nil {
+			discount = subtotal * p.Discount / 100
+			promoTitle = p.Title
+		}
+	}
+	tplOrder.ExecuteTemplate(w, "layout", OrderPage{
+		PageData:  PageData{Title: "Pesan", ActiveNav: "order", Session: sess, Flash: getFlash(w, r)},
+		Branches:  branches,
+		Promos:    promos,
+		CartItems: sess.CartItems,
+		Subtotal:  subtotal,
+		Discount:  discount,
+		Total:     subtotal - discount,
+		Branch:    sess.Branch,
+		PromoCode: promoTitle,
+	})
+}
+
+func addToCartHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	itemName := r.FormValue("item")
+	qty, _ := strconv.Atoi(r.FormValue("qty"))
+	if qty < 1 {
+		qty = 1
+	}
+	var found *MenuItem
+	for i := range menuItems {
+		if menuItems[i].Name == itemName {
+			found = &menuItems[i]
+			break
+		}
+	}
+	if found == nil {
+		http.Redirect(w, r, "/order", http.StatusFound)
+		return
+	}
+	mu.Lock()
+	updated := false
+	for i := range sess.CartItems {
+		if sess.CartItems[i].Item.Name == itemName {
+			sess.CartItems[i].Qty += qty
+			sess.CartItems[i].Subtotal = sess.CartItems[i].Qty * found.Price
+			updated = true
+			break
+		}
+	}
+	if !updated {
+		sess.CartItems = append(sess.CartItems, CartItem{Item: *found, Qty: qty, Subtotal: qty * found.Price})
+	}
+	mu.Unlock()
+	addFlash(w, found.Name+" ditambahkan ke keranjang! 🛒")
+	http.Redirect(w, r, "/order", http.StatusFound)
+}
+
+func removeFromCartHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	itemName := r.FormValue("item")
+	mu.Lock()
+	newCart := []CartItem{}
+	for _, c := range sess.CartItems {
+		if c.Item.Name != itemName {
+			newCart = append(newCart, c)
+		}
+	}
+	sess.CartItems = newCart
+	mu.Unlock()
+	http.Redirect(w, r, "/order", http.StatusFound)
+}
+
+func setBranchHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	branch := r.FormValue("branch")
+	mu.Lock()
+	sess.Branch = branch
+	mu.Unlock()
+	addFlash(w, "Cabang "+branch+" dipilih! 📍")
+	http.Redirect(w, r, "/order", http.StatusFound)
+}
+
+func applyPromoHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	code := strings.ToUpper(strings.TrimSpace(r.FormValue("promo_code")))
+	p := findPromo(code)
+	if p == nil {
+		addFlash(w, "Kode promo tidak valid! ❌")
+	} else {
+		mu.Lock()
+		sess.PromoCode = p.Code
+		mu.Unlock()
+		addFlash(w, "Promo \""+p.Title+"\" berhasil diaplikasikan! Diskon "+strconv.Itoa(p.Discount)+"% ✅")
+	}
+	http.Redirect(w, r, "/order", http.StatusFound)
+}
+
+func removePromoHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	mu.Lock()
+	sess.PromoCode = ""
+	mu.Unlock()
+	http.Redirect(w, r, "/order", http.StatusFound)
+}
+
+func checkoutHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if len(sess.CartItems) == 0 {
+		addFlash(w, "Keranjang kosong, tambahkan item terlebih dahulu!")
+		http.Redirect(w, r, "/order", http.StatusFound)
+		return
+	}
+	if sess.Branch == "" {
+		addFlash(w, "Pilih cabang terlebih dahulu! 📍")
+		http.Redirect(w, r, "/order", http.StatusFound)
+		return
+	}
+	subtotal := cartSubtotal(sess.CartItems)
+	discount := 0
+	promoTitle := ""
+	promoCode := ""
+	if sess.PromoCode != "" {
+		p := findPromo(sess.PromoCode)
+		if p != nil {
+			discount = subtotal * p.Discount / 100
+			promoTitle = p.Title
+			promoCode = p.Code
+		}
+	}
+	order := Order{
+		ID:         "ORD-" + randID(),
+		UserID:     sess.UserID,
+		Username:   sess.Username,
+		UserName:   sess.Name,
+		Branch:     sess.Branch,
+		Items:      append([]CartItem{}, sess.CartItems...),
+		PromoCode:  promoCode,
+		PromoTitle: promoTitle,
+		Discount:   discount,
+		Subtotal:   subtotal,
+		Total:      subtotal - discount,
+		Status:     "pending",
+		CreatedAt:  time.Now(),
+	}
+	mu.Lock()
+	orders = append(orders, order)
+	sess.CartItems = nil
+	sess.PromoCode = ""
+	sess.Branch = ""
+	mu.Unlock()
+	http.Redirect(w, r, "/payment/"+order.ID, http.StatusFound)
+}
+
+func paymentHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	orderID := strings.TrimPrefix(r.URL.Path, "/payment/")
+	mu.RLock()
+	var found *Order
+	for i := range orders {
+		if orders[i].ID == orderID && orders[i].UserID == sess.UserID {
+			copy := orders[i]
+			found = &copy
+			break
+		}
+	}
+	mu.RUnlock()
+	if found == nil {
+		http.Redirect(w, r, "/order", http.StatusFound)
+		return
+	}
+	if r.Method == http.MethodPost {
+		payMethod := r.FormValue("pay_method")
+		now := time.Now()
+		mu.Lock()
+		for i := range orders {
+			if orders[i].ID == orderID {
+				orders[i].Status = "paid"
+				orders[i].PayMethod = payMethod
+				orders[i].PaidAt = &now
+				break
+			}
+		}
+		mu.Unlock()
+		addFlash(w, "Pembayaran berhasil! Terima kasih, pesananmu sedang diproses. ☕")
+		http.Redirect(w, r, "/order", http.StatusFound)
+		return
+	}
+	tplPayment.ExecuteTemplate(w, "layout", PaymentPage{
+		PageData: PageData{Title: "Pembayaran", ActiveNav: "order", Session: sess},
+		Order:    found,
+	})
+}
+
+// ===== Admin Handlers =====
+
+func adminHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+	mu.RLock()
+	allOrders := append([]Order{}, orders...)
+	mu.RUnlock()
+	for i, j := 0, len(allOrders)-1; i < j; i, j = i+1, j-1 {
+		allOrders[i], allOrders[j] = allOrders[j], allOrders[i]
+	}
+	totalRev, todayRev := 0, 0
+	today := time.Now().Format("2006-01-02")
+	var promoStats []PromoUsageStat
+	for _, o := range allOrders {
+		if o.Status == "paid" {
+			totalRev += o.Total
+			if o.CreatedAt.Format("2006-01-02") == today {
+				todayRev += o.Total
+			}
+		}
+		if o.PromoCode != "" {
+			promoStats = append(promoStats, PromoUsageStat{
+				Code: o.PromoCode, Title: o.PromoTitle,
+				UsedBy: o.UserName + " (@" + o.Username + ")",
+				OrderID: o.ID, Discount: o.Discount, CreatedAt: o.CreatedAt,
+			})
+		}
+	}
+	tplAdmin.ExecuteTemplate(w, "admin.html", AdminPage{
+		PageData:   PageData{Title: "Dashboard Admin", Session: sess},
+		Orders:     allOrders,
+		PromoUsage: promoStats,
+		TotalRev:   totalRev,
+		TodayRev:   todayRev,
+	})
+}
+
+func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
+		http.Error(w, "Unauthorized", 403)
+		return
+	}
+	orderID := r.FormValue("order_id")
+	status := r.FormValue("status")
+	mu.Lock()
+	for i := range orders {
+		if orders[i].ID == orderID {
+			orders[i].Status = status
+			break
+		}
+	}
+	mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	mux := http.NewServeMux()
 
+	// Public
 	mux.HandleFunc("GET /", homeHandler)
 	mux.HandleFunc("GET /menu", menuHandler)
 	mux.HandleFunc("GET /cabang", cabangHandler)
 	mux.HandleFunc("GET /promo", promoHandler)
 	mux.HandleFunc("GET /poin", poinHandler)
+
+	// Auth
+	mux.HandleFunc("/login", loginHandler)
+	mux.HandleFunc("GET /logout", logoutHandler)
+
+	// User order flow
+	mux.HandleFunc("GET /order", requireLogin(orderHandler))
+	mux.HandleFunc("POST /cart/add", requireLogin(addToCartHandler))
+	mux.HandleFunc("POST /cart/remove", requireLogin(removeFromCartHandler))
+	mux.HandleFunc("POST /order/branch", requireLogin(setBranchHandler))
+	mux.HandleFunc("POST /order/promo", requireLogin(applyPromoHandler))
+	mux.HandleFunc("POST /order/promo/remove", requireLogin(removePromoHandler))
+	mux.HandleFunc("POST /checkout", requireLogin(checkoutHandler))
+	mux.HandleFunc("/payment/", requireLogin(paymentHandler))
+
+	// Admin
+	mux.HandleFunc("GET /admin", adminHandler)
+	mux.HandleFunc("POST /admin/order/update", adminUpdateOrderHandler)
 
 	log.Println("Server berjalan di http://localhost:8000")
 	log.Fatal(http.ListenAndServe("localhost:8000", mux))

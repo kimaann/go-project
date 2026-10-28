@@ -1,0 +1,97 @@
+﻿{{define "login.html"}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Kopiku — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root{--espresso:#1A0A00;--dark-roast:#2C1A0E;--caramel:#C4862A;--cream:#F5E6D0;--milk:#FDF6EE;--white:#fff;}
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',sans-serif;min-height:100vh;background:var(--espresso);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;}
+        body::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 50%,rgba(196,134,42,0.15) 0%,transparent 60%),radial-gradient(ellipse at 70% 20%,rgba(92,51,23,0.3) 0%,transparent 50%);pointer-events:none;}
+        .login-wrap{position:relative;z-index:1;width:100%;max-width:420px;padding:20px;}
+        .brand{text-align:center;margin-bottom:32px;}
+        .brand-icon{font-size:48px;display:block;margin-bottom:12px;filter:drop-shadow(0 4px 12px rgba(196,134,42,0.4));}
+        .brand h1{font-family:'Playfair Display',serif;font-size:32px;color:var(--cream);letter-spacing:-0.5px;}
+        .brand p{color:rgba(245,230,208,0.5);font-size:13px;margin-top:4px;}
+        .card{background:rgba(44,26,14,0.7);backdrop-filter:blur(20px);border:1px solid rgba(196,134,42,0.2);border-radius:20px;padding:36px;box-shadow:0 24px 64px rgba(0,0,0,0.5);}
+        .tab-bar{display:flex;gap:8px;margin-bottom:28px;background:rgba(26,10,0,0.5);border-radius:10px;padding:4px;}
+        .tab{flex:1;text-align:center;padding:8px;border-radius:7px;font-size:13px;font-weight:600;color:rgba(245,230,208,0.4);cursor:pointer;transition:all .2s;border:none;background:none;font-family:'Inter',sans-serif;}
+        .tab.active{background:var(--caramel);color:#fff;}
+        .form-group{margin-bottom:18px;}
+        label{display:block;font-size:12px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;color:rgba(245,230,208,0.5);margin-bottom:8px;}
+        input[type=text],input[type=password]{width:100%;padding:12px 16px;background:rgba(26,10,0,0.6);border:1px solid rgba(196,134,42,0.2);border-radius:10px;color:var(--cream);font-family:'Inter',sans-serif;font-size:14px;outline:none;transition:border-color .2s;}
+        input:focus{border-color:var(--caramel);}
+        input::placeholder{color:rgba(245,230,208,0.25);}
+        .btn-login{width:100%;padding:14px;background:linear-gradient(135deg,#C4862A,#a5711f);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;letter-spacing:0.3px;}
+        .btn-login:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(196,134,42,0.4);}
+        .flash{background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.3);color:#ff8a8a;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:18px;}
+        .hint{margin-top:20px;padding:14px;background:rgba(26,10,0,0.4);border-radius:10px;border:1px solid rgba(196,134,42,0.1);}
+        .hint p{font-size:11px;color:rgba(245,230,208,0.35);line-height:1.8;}
+        .hint strong{color:rgba(196,134,42,0.7);}
+        .panel{display:none;}.panel.active{display:block;}
+    </style>
+</head>
+<body>
+<div class="login-wrap">
+    <div class="brand">
+        <span class="brand-icon">☕</span>
+        <h1>Kopiku</h1>
+        <p>Kedai Kopi Premium Indonesia</p>
+    </div>
+    <div class="card">
+        <div class="tab-bar">
+            <button class="tab active" onclick="switchTab('user')" id="tab-user">👤 User</button>
+            <button class="tab" onclick="switchTab('admin')" id="tab-admin">🛡️ Admin / Kasir</button>
+        </div>
+        {{if .Flash}}<div class="flash">⚠️ {{.Flash}}</div>{{end}}
+
+        <div class="panel active" id="panel-user">
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" placeholder="Masukkan username" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" placeholder="Masukkan password" required>
+                </div>
+                <button type="submit" class="btn-login">Masuk sebagai User ☕</button>
+            </form>
+            <div class="hint">
+                <p>Demo: <strong>user1</strong> / <strong>user123</strong><br>atau: <strong>user2</strong> / <strong>user456</strong></p>
+            </div>
+        </div>
+
+        <div class="panel" id="panel-admin">
+            <form method="POST" action="/login">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" placeholder="admin / kasir" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" placeholder="Masukkan password" required>
+                </div>
+                <button type="submit" class="btn-login">Masuk sebagai Admin 🛡️</button>
+            </form>
+            <div class="hint">
+                <p>Admin: <strong>admin</strong> / <strong>admin123</strong><br>Kasir: <strong>kasir</strong> / <strong>kasir123</strong></p>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function switchTab(t){
+    document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(e=>e.classList.remove('active'));
+    document.getElementById('tab-'+t).classList.add('active');
+    document.getElementById('panel-'+t).classList.add('active');
+}
+</script>
+</body>
+</html>
+{{end}}

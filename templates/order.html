@@ -1,0 +1,144 @@
+﻿{{define "content"}}
+<style>
+.order-grid{display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start;}
+.panel-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--dark-roast);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;}
+.menu-card{background:var(--white);border-radius:12px;padding:16px;box-shadow:0 2px 12px rgba(44,26,14,0.08);transition:transform .2s,box-shadow .2s;}
+.menu-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(44,26,14,0.15);}
+.menu-icon{font-size:28px;margin-bottom:8px;}
+.menu-name{font-weight:700;font-size:14px;color:var(--dark-roast);}
+.menu-desc{font-size:12px;color:var(--text-muted);margin:4px 0 8px;line-height:1.4;}
+.menu-price{font-size:13px;font-weight:700;color:var(--caramel);}
+.menu-add{display:flex;align-items:center;gap:6px;margin-top:10px;}
+.menu-add input[type=number]{width:52px;padding:5px 8px;border:1px solid #e0d0c0;border-radius:6px;font-size:13px;text-align:center;}
+.btn-sm{padding:6px 12px;font-size:12px;font-weight:700;border:none;border-radius:6px;cursor:pointer;background:var(--caramel);color:#fff;font-family:'Inter',sans-serif;transition:all .15s;}
+.btn-sm:hover{background:#a5711f;}
+.sidebar-panel{background:var(--white);border-radius:14px;box-shadow:0 4px 20px rgba(44,26,14,0.1);padding:22px;position:sticky;top:100px;}
+.branch-select{width:100%;padding:10px 12px;border:1px solid #e0d0c0;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;color:var(--dark-roast);background:#fff;margin-bottom:10px;}
+.cart-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0e8dc;}
+.cart-item:last-child{border-bottom:none;}
+.ci-name{font-size:13px;font-weight:600;color:var(--dark-roast);}
+.ci-qty{font-size:12px;color:var(--text-muted);}
+.ci-price{font-size:13px;font-weight:700;color:var(--caramel);}
+.ci-remove{background:none;border:none;cursor:pointer;color:#cc4444;font-size:14px;padding:2px 6px;border-radius:4px;transition:background .15s;}
+.ci-remove:hover{background:#ffe5e5;}
+.total-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;}
+.total-row.grand{font-weight:800;font-size:16px;color:var(--dark-roast);border-top:2px solid var(--caramel);padding-top:12px;margin-top:4px;}
+.promo-input{display:flex;gap:8px;margin-bottom:10px;}
+.promo-input input{flex:1;padding:9px 12px;border:1px solid #e0d0c0;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;}
+.promo-badge{background:#e8f5e9;color:#2e7d32;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.promo-badge form button{background:none;border:none;color:#c62828;cursor:pointer;font-size:16px;line-height:1;}
+.flash-banner{background:linear-gradient(135deg,#e8f5e9,#f1f8f1);border-left:4px solid #4caf50;border-radius:8px;padding:10px 14px;font-size:13px;color:#2e7d32;margin-bottom:18px;font-weight:500;}
+.cat-filter{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.cat-btn{padding:6px 14px;border-radius:20px;border:1px solid #e0d0c0;background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-muted);transition:all .15s;}
+.cat-btn.active,.cat-btn:hover{background:var(--caramel);color:#fff;border-color:var(--caramel);}
+.empty-cart{text-align:center;padding:20px;color:var(--text-muted);font-size:13px;}
+.checkout-btn{width:100%;padding:14px;background:linear-gradient(135deg,#C4862A,#a5711f);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:14px;transition:all .2s;}
+.checkout-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(196,134,42,0.4);}
+.checkout-btn:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none;}
+</style>
+
+{{if .Flash}}<div class="flash-banner">{{.Flash}}</div>{{end}}
+
+<div class="order-grid">
+  <!-- Kiri: Pilih Cabang + Menu -->
+  <div>
+    <div style="margin-bottom:24px;">
+      <h2 class="panel-title">📍 Pilih Cabang</h2>
+      <form method="POST" action="/order/branch" style="display:flex;gap:10px;align-items:center;">
+        <select name="branch" class="branch-select" required>
+          <option value="" disabled {{if eq .Branch ""}}selected{{end}}>-- Pilih Cabang --</option>
+          {{range .Branches}}
+          <option value="{{.Name}}" {{if eq $.Branch .Name}}selected{{end}}>{{.Name}} — {{.City}}</option>
+          {{end}}
+        </select>
+        <button type="submit" class="btn-sm" style="white-space:nowrap">Pilih</button>
+      </form>
+      {{if .Branch}}<div style="margin-top:8px;font-size:12px;color:var(--caramel);font-weight:600;">✅ Cabang dipilih: {{.Branch}}</div>{{end}}
+    </div>
+
+    <h2 class="panel-title">📋 Pilih Menu</h2>
+    <div class="cat-filter">
+      <button class="cat-btn active" onclick="filterCat('all',this)">Semua</button>
+      <button class="cat-btn" onclick="filterCat('Kopi',this)">☕ Kopi</button>
+      <button class="cat-btn" onclick="filterCat('Non-Kopi',this)">🍵 Non-Kopi</button>
+      <button class="cat-btn" onclick="filterCat('Makanan',this)">🍞 Makanan</button>
+    </div>
+    <div class="menu-grid" id="menu-grid">
+      {{range .Items}}
+      <div class="menu-card" data-cat="{{.Category}}">
+        <div class="menu-icon">{{.Icon}}</div>
+        <div class="menu-name">{{.Name}}</div>
+        <div class="menu-desc">{{.Desc}}</div>
+        <div class="menu-price">{{rupiah .Price}}</div>
+        <form method="POST" action="/cart/add" class="menu-add">
+          <input type="hidden" name="item" value="{{.Name}}">
+          <input type="number" name="qty" value="1" min="1" max="10">
+          <button type="submit" class="btn-sm">+ Tambah</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Kanan: Keranjang & Promo -->
+  <div class="sidebar-panel">
+    <h3 class="panel-title">🛒 Keranjang</h3>
+    {{if .CartItems}}
+      {{range .CartItems}}
+      <div class="cart-item">
+        <div>
+          <div class="ci-name">{{.Item.Icon}} {{.Item.Name}}</div>
+          <div class="ci-qty">{{.Qty}} × {{rupiah .Item.Price}}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="ci-price">{{rupiah .Subtotal}}</span>
+          <form method="POST" action="/cart/remove">
+            <input type="hidden" name="item" value="{{.Item.Name}}">
+            <button type="submit" class="ci-remove" title="Hapus">✕</button>
+          </form>
+        </div>
+      </div>
+      {{end}}
+      <div style="margin-top:12px;">
+        <div class="total-row"><span>Subtotal</span><span>{{rupiah .Subtotal}}</span></div>
+        {{if .Discount}}<div class="total-row" style="color:green;"><span>Diskon Promo</span><span>-{{rupiah .Discount}}</span></div>{{end}}
+        <div class="total-row grand"><span>Total</span><span>{{rupiah .Total}}</span></div>
+      </div>
+    {{else}}
+      <div class="empty-cart">🛒 Keranjang kosong.<br>Tambahkan menu dari kiri.</div>
+    {{end}}
+
+    <hr style="margin:16px 0;border:none;border-top:1px solid #f0e8dc;">
+
+    <h4 style="font-size:13px;font-weight:700;color:var(--dark-roast);margin-bottom:10px;">🎁 Kode Promo</h4>
+    {{if .PromoCode}}
+    <div class="promo-badge">
+      <span>✅ {{.PromoCode}}</span>
+      <form method="POST" action="/order/promo/remove"><button type="submit">×</button></form>
+    </div>
+    {{else}}
+    <form method="POST" action="/order/promo" class="promo-input">
+      <input type="text" name="promo_code" placeholder="Kode promo..." style="text-transform:uppercase;">
+      <button type="submit" class="btn-sm">Pakai</button>
+    </form>
+    <div style="font-size:11px;color:var(--text-muted);">Contoh: COLDBREW2, NEWMENU30</div>
+    {{end}}
+
+    <form method="POST" action="/checkout">
+      <button type="submit" class="checkout-btn" {{if not .CartItems}}disabled{{end}}>
+        Lanjut Bayar →
+      </button>
+    </form>
+  </div>
+</div>
+<script>
+function filterCat(cat, btn) {
+    document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.menu-card').forEach(c=>{
+        c.style.display = (cat==='all'||c.dataset.cat===cat)?'':'none';
+    });
+}
+</script>
+{{end}}

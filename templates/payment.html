@@ -1,0 +1,100 @@
+﻿{{define "content"}}
+<style>
+.pay-wrap{max-width:640px;margin:0 auto;}
+.pay-card{background:var(--white);border-radius:16px;box-shadow:0 4px 24px rgba(44,26,14,0.12);overflow:hidden;margin-bottom:24px;}
+.pay-header{background:linear-gradient(135deg,var(--dark-roast),var(--espresso));color:var(--cream);padding:24px 28px;}
+.pay-header h2{font-family:'Playfair Display',serif;font-size:22px;margin-bottom:4px;}
+.pay-header p{font-size:13px;opacity:.6;}
+.pay-body{padding:24px 28px;}
+.order-item-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5ede4;font-size:14px;}
+.order-item-row:last-child{border-bottom:none;}
+.item-info{display:flex;align-items:center;gap:8px;}
+.item-qty{background:var(--caramel);color:#fff;border-radius:12px;padding:1px 8px;font-size:11px;font-weight:700;}
+.pay-totals{background:#fdf6ee;border-radius:10px;padding:16px;margin:16px 0;}
+.total-row{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
+.total-row.grand{font-weight:800;font-size:18px;border-top:2px solid var(--caramel);padding-top:12px;margin-top:8px;color:var(--dark-roast);}
+.total-row.discount{color:#2e7d32;font-weight:600;}
+.promo-tag{display:inline-flex;align-items:center;gap:6px;background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;margin-top:8px;}
+.pay-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;}
+.pay-method{border:2px solid #e0d0c0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:all .2s;}
+.pay-method:has(input:checked){border-color:var(--caramel);background:#fff9f2;}
+.pay-method input{display:none;}
+.pay-method-icon{font-size:26px;display:block;margin-bottom:6px;}
+.pay-method-name{font-size:12px;font-weight:700;color:var(--dark-roast);}
+.pay-method-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.pay-btn{width:100%;padding:16px;background:linear-gradient(135deg,#C4862A,#a5711f);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:16px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;}
+.pay-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(196,134,42,0.4);}
+.order-meta{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.meta-item{background:#fdf6ee;border-radius:8px;padding:10px 14px;}
+.meta-label{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;}
+.meta-value{font-size:13px;font-weight:700;color:var(--dark-roast);margin-top:2px;}
+</style>
+
+<div class="pay-wrap">
+  <div class="pay-card">
+    <div class="pay-header">
+      <h2>💳 Konfirmasi Pembayaran</h2>
+      <p>Order ID: <strong>{{.Order.ID}}</strong></p>
+    </div>
+    <div class="pay-body">
+      <div class="order-meta">
+        <div class="meta-item">
+          <div class="meta-label">Nama</div>
+          <div class="meta-value">{{.Order.UserName}}</div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-label">Cabang</div>
+          <div class="meta-value">{{.Order.Branch}}</div>
+        </div>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:700;color:var(--dark-roast);margin-bottom:10px;">Detail Pesanan</h4>
+      {{range .Order.Items}}
+      <div class="order-item-row">
+        <div class="item-info">
+          <span>{{.Item.Icon}}</span>
+          <span>{{.Item.Name}}</span>
+          <span class="item-qty">×{{.Qty}}</span>
+        </div>
+        <span style="font-weight:600;color:var(--caramel);">{{rupiah .Subtotal}}</span>
+      </div>
+      {{end}}
+
+      {{if .Order.PromoTitle}}
+      <div class="promo-tag">🎁 {{.Order.PromoTitle}} ({{.Order.PromoCode}})</div>
+      {{end}}
+
+      <div class="pay-totals">
+        <div class="total-row"><span>Subtotal</span><span>{{rupiah .Order.Subtotal}}</span></div>
+        {{if .Order.Discount}}<div class="total-row discount"><span>Diskon Promo</span><span>-{{rupiah .Order.Discount}}</span></div>{{end}}
+        <div class="total-row grand"><span>Total Bayar</span><span>{{rupiah .Order.Total}}</span></div>
+      </div>
+
+      <h4 style="font-size:13px;font-weight:700;color:var(--dark-roast);margin-bottom:12px;">Metode Pembayaran</h4>
+      <form method="POST">
+        <div class="pay-methods">
+          <label class="pay-method">
+            <input type="radio" name="pay_method" value="QRIS" required>
+            <span class="pay-method-icon">📱</span>
+            <div class="pay-method-name">QRIS</div>
+            <div class="pay-method-sub">Scan & Pay</div>
+          </label>
+          <label class="pay-method">
+            <input type="radio" name="pay_method" value="Transfer Bank">
+            <span class="pay-method-icon">🏦</span>
+            <div class="pay-method-name">Transfer Bank</div>
+            <div class="pay-method-sub">BCA / BNI / Mandiri</div>
+          </label>
+          <label class="pay-method">
+            <input type="radio" name="pay_method" value="Tunai">
+            <span class="pay-method-icon">💵</span>
+            <div class="pay-method-name">Tunai</div>
+            <div class="pay-method-sub">Bayar di kasir</div>
+          </label>
+        </div>
+        <button type="submit" class="pay-btn">✅ Konfirmasi & Bayar {{rupiah .Order.Total}}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{{end}}
