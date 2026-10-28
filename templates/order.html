@@ -1,4 +1,4 @@
-﻿{{define "content"}}
+{{define "content"}}
 <style>
 .order-grid{display:grid;grid-template-columns:1fr 340px;gap:28px;align-items:start;}
 .panel-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--dark-roast);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
@@ -36,6 +36,7 @@
 .checkout-btn{width:100%;padding:14px;background:linear-gradient(135deg,#C4862A,#a5711f);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-top:14px;transition:all .2s;}
 .checkout-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(196,134,42,0.4);}
 .checkout-btn:disabled{background:#ccc;cursor:not-allowed;transform:none;box-shadow:none;}
+@media(max-width:800px){.order-grid{grid-template-columns:1fr;}.sidebar-panel{position:static;}}
 </style>
 
 {{if .Flash}}<div class="flash-banner">{{.Flash}}</div>{{end}}

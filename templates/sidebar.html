@@ -58,7 +58,31 @@
         color: rgba(245,230,208,0.3);
         line-height: 1.5;
     }
+    .sidebar-user-card {
+        margin: 0 16px 20px;
+        padding: 14px 16px;
+        background: rgba(196,134,42,0.08);
+        border: 1px solid rgba(196,134,42,0.15);
+        border-radius: 12px;
+    }
+    .sidebar-user-name {
+        color: var(--cream);
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+    .sidebar-user-role {
+        font-size: 11px;
+        color: rgba(196,134,42,0.7);
+    }
 </style>
+
+{{if .Session}}
+<div class="sidebar-user-card">
+    <div class="sidebar-user-name">👤 {{.Session.Name}}</div>
+    <div class="sidebar-user-role">{{.Session.Role}} • @{{.Session.Username}}</div>
+</div>
+{{end}}
 
 <p class="nav-section-label">Navigasi</p>
 
@@ -83,6 +107,31 @@
 <a href="/poin"   class="nav-item {{if eq .ActiveNav "poin"}}active{{end}}">
     <span class="nav-icon">⭐</span> Sistem Poin
 </a>
+
+{{if .Session}}
+{{if eq .Session.Role "user"}}
+<hr class="nav-divider">
+<p class="nav-section-label">Pesanan</p>
+
+<a href="/order"  class="nav-item {{if eq .ActiveNav "order"}}active{{end}}">
+    <span class="nav-icon">🛒</span> Pesan Sekarang
+</a>
+<a href="/orders" class="nav-item {{if eq .ActiveNav "orders"}}active{{end}}">
+    <span class="nav-icon">📦</span> Riwayat Pesanan
+</a>
+{{end}}
+{{end}}
+
+{{if not .Session}}
+<hr class="nav-divider">
+<p class="nav-section-label">Akun</p>
+<a href="/login" class="nav-item">
+    <span class="nav-icon">🔑</span> Login
+</a>
+<a href="/register" class="nav-item">
+    <span class="nav-icon">📝</span> Daftar
+</a>
+{{end}}
 
 <div class="sidebar-bottom">
     <p>☕ Kopiku &copy; 2026<br>All rights reserved.</p>

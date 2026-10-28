@@ -1,0 +1,249 @@
+{{define "register.html"}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daftar - Kopiku</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --espresso: #1A0A00;
+            --dark-roast: #2C1A0E;
+            --caramel: #C4862A;
+            --cream: #F5E6D0;
+            --milk: #FDF6EE;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--espresso);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem 1rem;
+            background-image:
+                radial-gradient(ellipse at 20% 50%, rgba(44, 26, 14, 0.6) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(196, 134, 42, 0.08) 0%, transparent 40%),
+                radial-gradient(ellipse at 50% 100%, rgba(44, 26, 14, 0.4) 0%, transparent 50%);
+        }
+
+        .register-card {
+            width: 100%;
+            max-width: 460px;
+            background: rgba(44, 26, 14, 0.55);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(196, 134, 42, 0.15);
+            border-radius: 20px;
+            padding: 2.5rem 2.5rem 2rem;
+            box-shadow:
+                0 25px 60px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(196, 134, 42, 0.05) inset;
+        }
+
+        .brand {
+            text-align: center;
+            margin-bottom: 1.8rem;
+        }
+
+        .brand-logo {
+            font-size: 2.2rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .brand-name {
+            font-family: 'Playfair Display', serif;
+            font-weight: 700;
+            font-size: 1.8rem;
+            color: var(--caramel);
+            letter-spacing: 1px;
+        }
+
+        .register-title {
+            text-align: center;
+            color: var(--cream);
+            font-family: 'Playfair Display', serif;
+            font-weight: 600;
+            font-size: 1.3rem;
+            margin-bottom: 1.8rem;
+        }
+
+        .flash-message {
+            background: rgba(196, 134, 42, 0.15);
+            border: 1px solid rgba(196, 134, 42, 0.35);
+            color: var(--cream);
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .form-group {
+            margin-bottom: 1.2rem;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--cream);
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            opacity: 0.9;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(26, 10, 0, 0.5);
+            border: 1px solid rgba(196, 134, 42, 0.2);
+            border-radius: 10px;
+            color: var(--cream);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            outline: none;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(245, 230, 208, 0.35);
+        }
+
+        .form-group input:focus {
+            border-color: var(--caramel);
+            box-shadow: 0 0 0 3px rgba(196, 134, 42, 0.1);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .btn-register {
+            width: 100%;
+            padding: 0.85rem;
+            background: linear-gradient(135deg, var(--caramel), #D4963A);
+            color: var(--espresso);
+            border: none;
+            border-radius: 10px;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+            margin-top: 0.5rem;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-register:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(196, 134, 42, 0.3);
+            opacity: 0.95;
+        }
+
+        .btn-register:active {
+            transform: translateY(0);
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: rgba(245, 230, 208, 0.6);
+            font-size: 0.875rem;
+        }
+
+        .login-link a {
+            color: var(--caramel);
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.2s ease;
+        }
+
+        .login-link a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        @media (max-width: 500px) {
+            .register-card {
+                padding: 2rem 1.5rem 1.5rem;
+            }
+
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-card">
+        <div class="brand">
+            <div class="brand-logo">☕</div>
+            <div class="brand-name">Kopiku</div>
+        </div>
+
+        <h1 class="register-title">Daftar Akun Baru</h1>
+
+        {{if .Flash}}
+        <div class="flash-message">{{.Flash}}</div>
+        {{end}}
+
+        <form method="POST" action="/register">
+            <div class="form-group">
+                <label for="name">Nama Lengkap</label>
+                <input type="text" id="name" name="name" placeholder="Masukkan nama lengkap" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Pilih username" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">No. Telepon</label>
+                    <input type="tel" id="phone" name="phone" placeholder="08xxxxxxxxxx" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" placeholder="contoh@email.com" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Buat password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Konfirmasi Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Ulangi password" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-register">Daftar Sekarang</button>
+        </form>
+
+        <div class="login-link">
+            Sudah punya akun? <a href="/login">Login di sini</a>
+        </div>
+    </div>
+</body>
+</html>
+{{end}}

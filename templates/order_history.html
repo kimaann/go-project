@@ -1,0 +1,395 @@
+{{define "content"}}
+<style>
+    .order-history-page {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem 1rem 4rem;
+    }
+
+    .order-history-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .order-history-header h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 2rem;
+        color: var(--espresso, #1A0A00);
+        margin: 0 0 0.4rem;
+    }
+
+    .order-history-header .subtitle {
+        color: var(--text-muted, #7a6352);
+        font-size: 0.95rem;
+    }
+
+    /* Flash banner */
+    .flash-banner {
+        background: linear-gradient(135deg, var(--caramel, #C4862A), #d4963a);
+        color: #fff;
+        padding: 0.85rem 1.25rem;
+        border-radius: 14px;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(196, 134, 42, 0.25);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 1rem;
+        background: var(--milk, #FDF6EE);
+        border-radius: 14px;
+        border: 2px dashed var(--cream, #F5E6D0);
+    }
+
+    .empty-state .empty-icon {
+        font-size: 3.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h3 {
+        font-family: 'Playfair Display', serif;
+        color: var(--espresso, #1A0A00);
+        margin: 0 0 0.5rem;
+        font-size: 1.3rem;
+    }
+
+    .empty-state p {
+        color: var(--text-muted, #7a6352);
+        margin: 0 0 1.5rem;
+        font-size: 0.95rem;
+    }
+
+    /* Order card */
+    .order-card {
+        background: #fff;
+        border-radius: 14px;
+        box-shadow: 0 2px 12px rgba(26, 10, 0, 0.07);
+        margin-bottom: 1.25rem;
+        overflow: hidden;
+        border: 1px solid var(--cream, #F5E6D0);
+        transition: box-shadow 0.2s ease;
+    }
+
+    .order-card:hover {
+        box-shadow: 0 4px 20px rgba(26, 10, 0, 0.12);
+    }
+
+    .order-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 1.25rem 1.5rem;
+        background: var(--milk, #FDF6EE);
+        border-bottom: 1px solid var(--cream, #F5E6D0);
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .order-meta .order-id {
+        font-weight: 700;
+        color: var(--espresso, #1A0A00);
+        font-size: 0.95rem;
+        font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+
+    .order-meta .order-date {
+        color: var(--text-muted, #7a6352);
+        font-size: 0.82rem;
+        margin-top: 0.2rem;
+    }
+
+    .order-meta .order-branch {
+        color: var(--text-muted, #7a6352);
+        font-size: 0.82rem;
+    }
+
+    /* Status badges */
+    .status-badge {
+        display: inline-block;
+        padding: 0.3rem 0.85rem;
+        border-radius: 50px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+    }
+
+    .status-pending {
+        background: #FFF8E1;
+        color: #F9A825;
+        border: 1px solid #FFE082;
+    }
+
+    .status-paid {
+        background: #E3F2FD;
+        color: #1976D2;
+        border: 1px solid #90CAF9;
+    }
+
+    .status-preparing {
+        background: #FFF3E0;
+        color: #E65100;
+        border: 1px solid #FFCC80;
+    }
+
+    .status-ready {
+        background: #E8F5E9;
+        color: #2E7D32;
+        border: 1px solid #A5D6A7;
+    }
+
+    .status-done {
+        background: #F5F5F5;
+        color: #757575;
+        border: 1px solid #E0E0E0;
+    }
+
+    .status-cancelled {
+        background: #FFEBEE;
+        color: #C62828;
+        border: 1px solid #EF9A9A;
+    }
+
+    /* Order items */
+    .order-card-body {
+        padding: 1.25rem 1.5rem;
+    }
+
+    .order-items-list {
+        list-style: none;
+        margin: 0 0 1rem;
+        padding: 0;
+    }
+
+    .order-items-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.45rem 0;
+        font-size: 0.9rem;
+        color: var(--dark-roast, #2C1A0E);
+        border-bottom: 1px dashed var(--cream, #F5E6D0);
+    }
+
+    .order-items-list li:last-child {
+        border-bottom: none;
+    }
+
+    .item-name-qty {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .item-icon {
+        font-size: 1.1rem;
+    }
+
+    .item-qty {
+        color: var(--text-muted, #7a6352);
+        font-size: 0.82rem;
+    }
+
+    .item-subtotal {
+        font-weight: 500;
+        color: var(--espresso, #1A0A00);
+        white-space: nowrap;
+    }
+
+    /* Promo info */
+    .promo-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #FFF8E1;
+        padding: 0.55rem 0.85rem;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        color: #E65100;
+        margin-bottom: 1rem;
+        border: 1px solid #FFE082;
+    }
+
+    .promo-info .promo-icon {
+        font-size: 1rem;
+    }
+
+    .promo-info .promo-code {
+        font-weight: 700;
+        font-family: 'SFMono-Regular', Consolas, monospace;
+    }
+
+    /* Order totals */
+    .order-totals {
+        border-top: 2px solid var(--cream, #F5E6D0);
+        padding-top: 0.85rem;
+    }
+
+    .order-totals .total-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+        font-size: 0.88rem;
+        color: var(--dark-roast, #2C1A0E);
+    }
+
+    .order-totals .total-row.discount {
+        color: #C62828;
+    }
+
+    .order-totals .total-row.grand-total {
+        font-weight: 700;
+        font-size: 1.05rem;
+        color: var(--espresso, #1A0A00);
+        border-top: 1px solid var(--cream, #F5E6D0);
+        padding-top: 0.5rem;
+        margin-top: 0.3rem;
+    }
+
+    .order-totals .pay-method {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        margin-top: 0.6rem;
+        font-size: 0.82rem;
+        color: var(--text-muted, #7a6352);
+    }
+
+    /* Pesan Lagi button */
+    .btn-order-again {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: linear-gradient(135deg, var(--caramel, #C4862A), #d4963a);
+        color: #fff;
+        text-decoration: none;
+        padding: 0.75rem 1.75rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 2px 10px rgba(196, 134, 42, 0.3);
+    }
+
+    .btn-order-again:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(196, 134, 42, 0.4);
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+        .order-history-page {
+            padding: 1.25rem 0.75rem 3rem;
+        }
+
+        .order-history-header h1 {
+            font-size: 1.6rem;
+        }
+
+        .order-card-header {
+            padding: 1rem 1.15rem;
+        }
+
+        .order-card-body {
+            padding: 1rem 1.15rem;
+        }
+    }
+</style>
+
+<div class="order-history-page">
+    <div class="order-history-header">
+        <h1>📋 Riwayat Pesanan</h1>
+        <p class="subtitle">Daftar semua pesanan yang pernah kamu buat</p>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash-banner">{{.Flash}}</div>
+    {{end}}
+
+    {{if not .Orders}}
+    <div class="empty-state">
+        <div class="empty-icon">☕</div>
+        <h3>Belum ada pesanan</h3>
+        <p>Kamu belum pernah memesan. Yuk, mulai pesan kopi favoritmu!</p>
+        <a href="/order" class="btn-order-again">Pesan Sekarang →</a>
+    </div>
+    {{else}}
+
+    {{range .Orders}}
+    <div class="order-card">
+        <div class="order-card-header">
+            <div class="order-meta">
+                <div class="order-id">#{{.ID}}</div>
+                <div class="order-date">{{formatTime .CreatedAt}}</div>
+                {{if .Branch}}<div class="order-branch">📍 {{.Branch}}</div>{{end}}
+            </div>
+            <span class="status-badge status-{{.Status}}">
+                {{if eq .Status "pending"}}Menunggu
+                {{else if eq .Status "paid"}}Dibayar
+                {{else if eq .Status "preparing"}}Diproses
+                {{else if eq .Status "ready"}}Siap
+                {{else if eq .Status "done"}}Selesai
+                {{else if eq .Status "cancelled"}}Dibatalkan
+                {{else}}{{.Status}}
+                {{end}}
+            </span>
+        </div>
+
+        <div class="order-card-body">
+            <ul class="order-items-list">
+                {{range .Items}}
+                <li>
+                    <span class="item-name-qty">
+                        <span class="item-icon">{{.Item.Icon}}</span>
+                        <span>{{.Item.Name}}</span>
+                        <span class="item-qty">×{{.Qty}}</span>
+                    </span>
+                    <span class="item-subtotal">{{rupiah .Subtotal}}</span>
+                </li>
+                {{end}}
+            </ul>
+
+            {{if .PromoCode}}
+            <div class="promo-info">
+                <span class="promo-icon">🏷️</span>
+                <span>Promo <span class="promo-code">{{.PromoCode}}</span>{{if .PromoTitle}} — {{.PromoTitle}}{{end}}</span>
+            </div>
+            {{end}}
+
+            <div class="order-totals">
+                <div class="total-row">
+                    <span>Subtotal</span>
+                    <span>{{rupiah .Subtotal}}</span>
+                </div>
+                {{if gt .Discount 0}}
+                <div class="total-row discount">
+                    <span>Diskon</span>
+                    <span>-{{rupiah .Discount}}</span>
+                </div>
+                {{end}}
+                <div class="total-row grand-total">
+                    <span>Total</span>
+                    <span>{{rupiah .Total}}</span>
+                </div>
+                {{if and .PayMethod (ne .Status "pending")}}
+                <div class="pay-method">
+                    💳 Dibayar via <strong>{{.PayMethod}}</strong>
+                    {{if .PaidAt}} · {{formatTime .PaidAt}}{{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="/order" class="btn-order-again">Pesan Lagi →</a>
+    </div>
+
+    {{end}}
+</div>
+{{end}}

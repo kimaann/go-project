@@ -26,7 +26,7 @@
     .header-right {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: 14px;
     }
     .header-poin-badge {
         display: flex;
@@ -41,6 +41,59 @@
         font-weight: 600;
         cursor: default;
     }
+    .header-user-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .header-user-name {
+        color: var(--cream);
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .header-user-role {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 3px 10px;
+        border-radius: 12px;
+    }
+    .role-user { background: rgba(76,175,80,0.2); color: #66bb6a; }
+    .role-admin { background: rgba(244,67,54,0.2); color: #ef5350; }
+    .role-kasir { background: rgba(255,152,0,0.2); color: #ffa726; }
+    .header-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all .2s;
+        font-family: 'Inter', sans-serif;
+        border: none;
+        cursor: pointer;
+    }
+    .header-btn-login {
+        background: var(--caramel);
+        color: #fff;
+    }
+    .header-btn-login:hover {
+        background: #a5711f;
+        text-decoration: none;
+    }
+    .header-btn-logout {
+        background: rgba(245,230,208,0.1);
+        color: rgba(245,230,208,0.7);
+        border: 1px solid rgba(245,230,208,0.2);
+    }
+    .header-btn-logout:hover {
+        background: rgba(245,230,208,0.2);
+        color: var(--cream);
+        text-decoration: none;
+    }
 </style>
 <a href="/" class="header-brand">
     <span class="header-logo">☕</span>
@@ -50,6 +103,22 @@
     </div>
 </a>
 <div class="header-right">
-    <div class="header-poin-badge">⭐ 6 Cabang Aktif</div>
+    {{if .Session}}
+        <div class="header-poin-badge">⭐ 6 Cabang Aktif</div>
+        <div class="header-user-info">
+            <span class="header-user-name">{{.Session.Name}}</span>
+            <span class="header-user-role role-{{.Session.Role}}">{{.Session.Role}}</span>
+        </div>
+        {{if eq .Session.Role "admin"}}
+            <a href="/admin" class="header-btn header-btn-login">🛡️ Admin</a>
+        {{end}}
+        {{if eq .Session.Role "kasir"}}
+            <a href="/admin" class="header-btn header-btn-login">💼 Kasir</a>
+        {{end}}
+        <a href="/logout" class="header-btn header-btn-logout">Keluar ↗</a>
+    {{else}}
+        <div class="header-poin-badge">⭐ 6 Cabang Aktif</div>
+        <a href="/login" class="header-btn header-btn-login">Masuk ☕</a>
+    {{end}}
 </div>
 {{end}}

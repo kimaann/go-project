@@ -1,4 +1,4 @@
-﻿{{define "login.html"}}
+{{define "login.html"}}
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -29,10 +29,14 @@
         .btn-login{width:100%;padding:14px;background:linear-gradient(135deg,#C4862A,#a5711f);color:#fff;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;margin-top:8px;letter-spacing:0.3px;}
         .btn-login:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(196,134,42,0.4);}
         .flash{background:rgba(220,53,69,0.15);border:1px solid rgba(220,53,69,0.3);color:#ff8a8a;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:18px;}
+        .flash-success{background:rgba(76,175,80,0.15);border:1px solid rgba(76,175,80,0.3);color:#81c784;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:18px;}
         .hint{margin-top:20px;padding:14px;background:rgba(26,10,0,0.4);border-radius:10px;border:1px solid rgba(196,134,42,0.1);}
         .hint p{font-size:11px;color:rgba(245,230,208,0.35);line-height:1.8;}
         .hint strong{color:rgba(196,134,42,0.7);}
         .panel{display:none;}.panel.active{display:block;}
+        .register-link{text-align:center;margin-top:20px;}
+        .register-link a{color:var(--caramel);font-size:13px;font-weight:600;text-decoration:none;}
+        .register-link a:hover{text-decoration:underline;}
     </style>
 </head>
 <body>
@@ -47,7 +51,13 @@
             <button class="tab active" onclick="switchTab('user')" id="tab-user">👤 User</button>
             <button class="tab" onclick="switchTab('admin')" id="tab-admin">🛡️ Admin / Kasir</button>
         </div>
-        {{if .Flash}}<div class="flash">⚠️ {{.Flash}}</div>{{end}}
+        {{if .Flash}}
+            {{if eq .Flash "Registrasi berhasil! Silakan login."}}
+                <div class="flash-success">✅ {{.Flash}}</div>
+            {{else}}
+                <div class="flash">⚠️ {{.Flash}}</div>
+            {{end}}
+        {{end}}
 
         <div class="panel active" id="panel-user">
             <form method="POST" action="/login">
@@ -61,6 +71,9 @@
                 </div>
                 <button type="submit" class="btn-login">Masuk sebagai User ☕</button>
             </form>
+            <div class="register-link">
+                <a href="/register">Belum punya akun? Daftar di sini →</a>
+            </div>
             <div class="hint">
                 <p>Demo: <strong>user1</strong> / <strong>user123</strong><br>atau: <strong>user2</strong> / <strong>user456</strong></p>
             </div>

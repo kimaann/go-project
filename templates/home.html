@@ -160,6 +160,13 @@
     <div class="hero-actions">
         <a href="/menu"   class="btn btn-primary">Lihat Menu ☕</a>
         <a href="/cabang" class="btn btn-outline" style="color:var(--cream);border-color:rgba(245,230,208,0.4);">Temukan Cabang 📍</a>
+        {{if .Session}}
+            {{if eq .Session.Role "user"}}
+            <a href="/order" class="btn btn-primary" style="background:linear-gradient(135deg,#2e7d32,#1b5e20);">🛒 Pesan Sekarang</a>
+            {{end}}
+        {{else}}
+            <a href="/login" class="btn btn-outline" style="color:var(--cream);border-color:rgba(245,230,208,0.4);">🔑 Login / Daftar</a>
+        {{end}}
     </div>
 </section>
 

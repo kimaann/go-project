@@ -54,6 +54,8 @@ type User struct {
 	Username string
 	Password string
 	Name     string
+	Email    string
+	Phone    string
 	Role     string
 	Points   int
 }
@@ -126,6 +128,7 @@ type OrderPage struct {
 	PageData
 	Branches  []Branch
 	Promos    []Promo
+	Items     []MenuItem
 	CartItems []CartItem
 	Subtotal  int
 	Discount  int
@@ -143,6 +146,7 @@ type PromoUsageStat struct {
 	Code      string
 	Title     string
 	UsedBy    string
+	Username  string
 	OrderID   string
 	Discount  int
 	CreatedAt time.Time
@@ -150,10 +154,26 @@ type PromoUsageStat struct {
 
 type AdminPage struct {
 	PageData
-	Orders     []Order
-	PromoUsage []PromoUsageStat
-	TotalRev   int
-	TodayRev   int
+	Orders       []Order
+	PromoUsage   []PromoUsageStat
+	TotalRev     int
+	TodayRev     int
+	TotalOrders  int
+	PendingCount int
+	PaidCount    int
+	MenuItems    []MenuItem
+	Branches     []Branch
+	Promos       []Promo
+	Users        []User
+}
+
+type OrderHistoryPage struct {
+	PageData
+	Orders []Order
+}
+
+type RegisterData struct {
+	Flash string
 }
 
 // ===== Static Data =====
@@ -243,11 +263,12 @@ var (
 	sessions = map[string]*Session{}
 	orders   = []Order{}
 	users    = []User{
-		{ID: "u1", Username: "admin", Password: "admin123", Name: "Administrator", Role: "admin"},
-		{ID: "u2", Username: "kasir", Password: "kasir123", Name: "Kasir Sudirman", Role: "kasir"},
-		{ID: "u3", Username: "user1", Password: "user123", Name: "Budi Santoso", Role: "user", Points: 350},
-		{ID: "u4", Username: "user2", Password: "user456", Name: "Siti Rahayu", Role: "user", Points: 1200},
+		{ID: "u1", Username: "admin", Password: "admin123", Name: "Administrator", Email: "admin@kopiku.id", Phone: "08111111111", Role: "admin"},
+		{ID: "u2", Username: "kasir", Password: "kasir123", Name: "Kasir Sudirman", Email: "kasir@kopiku.id", Phone: "08222222222", Role: "kasir"},
+		{ID: "u3", Username: "user1", Password: "user123", Name: "Budi Santoso", Email: "budi@email.com", Phone: "08333333333", Role: "user", Points: 350},
+		{ID: "u4", Username: "user2", Password: "user456", Name: "Siti Rahayu", Email: "siti@email.com", Phone: "08444444444", Role: "user", Points: 1200},
 	}
+	nextUserID = 5
 )
 
 var pointTiers = []PointTier{
@@ -310,6 +331,24 @@ var funcs = template.FuncMap{
 	"formatTime": func(t time.Time) string {
 		return t.Format("02 Jan 2006, 15:04")
 	},
+	"tierName": func(points int) string {
+		name := "Bronze"
+		for _, t := range pointTiers {
+			if points >= t.MinPoint {
+				name = t.Name
+			}
+		}
+		return name
+	},
+	"tierIcon": func(points int) string {
+		icon := "🥉"
+		for _, t := range pointTiers {
+			if points >= t.MinPoint {
+				icon = t.Icon
+			}
+		}
+		return icon
+	},
 }
 
 func parsePage(files ...string) *template.Template {
@@ -327,15 +366,17 @@ func parseSimple(name string, files ...string) *template.Template {
 }
 
 var (
-	tplHome    = parsePage("templates/home.html")
-	tplMenu    = parsePage("templates/menu.html")
-	tplCabang  = parsePage("templates/cabang.html")
-	tplPromo   = parsePage("templates/promo.html")
-	tplPoin    = parsePage("templates/poin.html")
-	tplLogin   = parseSimple("login.html", "templates/login.html")
-	tplOrder   = parsePage("templates/order.html")
-	tplPayment = parsePage("templates/payment.html")
-	tplAdmin   = parseSimple("admin.html", "templates/admin.html")
+	tplHome         = parsePage("templates/home.html")
+	tplMenu         = parsePage("templates/menu.html")
+	tplCabang       = parsePage("templates/cabang.html")
+	tplPromo        = parsePage("templates/promo.html")
+	tplPoin         = parsePage("templates/poin.html")
+	tplLogin        = parseSimple("login.html", "templates/login.html")
+	tplRegister     = parseSimple("register.html", "templates/register.html")
+	tplOrder        = parsePage("templates/order.html")
+	tplPayment      = parsePage("templates/payment.html")
+	tplOrderHistory = parsePage("templates/order_history.html")
+	tplAdmin        = parseSimple("admin.html", "templates/admin.html")
 )
 
 // ===== Helper Functions =====
@@ -357,6 +398,15 @@ func getSession(r *http.Request) *Session {
 func findUser(username, password string) *User {
 	for i := range users {
 		if users[i].Username == username && users[i].Password == password {
+			return &users[i]
+		}
+	}
+	return nil
+}
+
+func findUserByID(id string) *User {
+	for i := range users {
+		if users[i].ID == id {
 			return &users[i]
 		}
 	}
@@ -385,6 +435,21 @@ func requireLogin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if getSession(r) == nil {
 			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func requireUser(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sess := getSession(r)
+		if sess == nil {
+			http.Redirect(w, r, "/login", http.StatusFound)
+			return
+		}
+		if sess.Role != "user" {
+			http.Redirect(w, r, "/admin", http.StatusFound)
 			return
 		}
 		next(w, r)
@@ -477,6 +542,67 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	if getSession(r) != nil {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	flash := getFlash(w, r)
+	if r.Method == http.MethodGet {
+		tplRegister.ExecuteTemplate(w, "register.html", RegisterData{Flash: flash})
+		return
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	username := strings.TrimSpace(r.FormValue("username"))
+	email := strings.TrimSpace(r.FormValue("email"))
+	phone := strings.TrimSpace(r.FormValue("phone"))
+	password := r.FormValue("password")
+	confirmPw := r.FormValue("confirm_password")
+
+	if name == "" || username == "" || password == "" {
+		addFlash(w, "Semua field wajib diisi.")
+		http.Redirect(w, r, "/register", http.StatusFound)
+		return
+	}
+	if password != confirmPw {
+		addFlash(w, "Konfirmasi password tidak cocok.")
+		http.Redirect(w, r, "/register", http.StatusFound)
+		return
+	}
+	if len(password) < 4 {
+		addFlash(w, "Password minimal 4 karakter.")
+		http.Redirect(w, r, "/register", http.StatusFound)
+		return
+	}
+
+	mu.Lock()
+	// Check username exists
+	for _, u := range users {
+		if u.Username == username {
+			mu.Unlock()
+			addFlash(w, "Username sudah dipakai, pilih yang lain.")
+			http.Redirect(w, r, "/register", http.StatusFound)
+			return
+		}
+	}
+	newUser := User{
+		ID:       fmt.Sprintf("u%d", nextUserID),
+		Username: username,
+		Password: password,
+		Name:     name,
+		Email:    email,
+		Phone:    phone,
+		Role:     "user",
+		Points:   0,
+	}
+	nextUserID++
+	users = append(users, newUser)
+	mu.Unlock()
+
+	addFlash(w, "Registrasi berhasil! Silakan login.")
+	http.Redirect(w, r, "/login", http.StatusFound)
+}
+
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("session_id")
 	if err == nil {
@@ -506,6 +632,7 @@ func orderHandler(w http.ResponseWriter, r *http.Request) {
 		PageData:  PageData{Title: "Pesan", ActiveNav: "order", Session: sess, Flash: getFlash(w, r)},
 		Branches:  branches,
 		Promos:    promos,
+		Items:     menuItems,
 		CartItems: sess.CartItems,
 		Subtotal:  subtotal,
 		Discount:  discount,
@@ -673,17 +800,38 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 				orders[i].Status = "paid"
 				orders[i].PayMethod = payMethod
 				orders[i].PaidAt = &now
+				// Add points to user
+				u := findUserByID(orders[i].UserID)
+				if u != nil {
+					u.Points += orders[i].Total / 1000
+				}
 				break
 			}
 		}
 		mu.Unlock()
 		addFlash(w, "Pembayaran berhasil! Terima kasih, pesananmu sedang diproses. ☕")
-		http.Redirect(w, r, "/order", http.StatusFound)
+		http.Redirect(w, r, "/orders", http.StatusFound)
 		return
 	}
 	tplPayment.ExecuteTemplate(w, "layout", PaymentPage{
 		PageData: PageData{Title: "Pembayaran", ActiveNav: "order", Session: sess},
 		Order:    found,
+	})
+}
+
+func orderHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	mu.RLock()
+	var myOrders []Order
+	for i := len(orders) - 1; i >= 0; i-- {
+		if orders[i].UserID == sess.UserID {
+			myOrders = append(myOrders, orders[i])
+		}
+	}
+	mu.RUnlock()
+	tplOrderHistory.ExecuteTemplate(w, "layout", OrderHistoryPage{
+		PageData: PageData{Title: "Riwayat Pesanan", ActiveNav: "orders", Session: sess, Flash: getFlash(w, r)},
+		Orders:   myOrders,
 	})
 }
 
@@ -697,34 +845,48 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	mu.RLock()
 	allOrders := append([]Order{}, orders...)
+	allUsers := append([]User{}, users...)
 	mu.RUnlock()
 	for i, j := 0, len(allOrders)-1; i < j; i, j = i+1, j-1 {
 		allOrders[i], allOrders[j] = allOrders[j], allOrders[i]
 	}
 	totalRev, todayRev := 0, 0
+	pendingCount, paidCount := 0, 0
 	today := time.Now().Format("2006-01-02")
 	var promoStats []PromoUsageStat
 	for _, o := range allOrders {
 		if o.Status == "paid" {
 			totalRev += o.Total
+			paidCount++
 			if o.CreatedAt.Format("2006-01-02") == today {
 				todayRev += o.Total
 			}
 		}
+		if o.Status == "pending" {
+			pendingCount++
+		}
 		if o.PromoCode != "" {
 			promoStats = append(promoStats, PromoUsageStat{
 				Code: o.PromoCode, Title: o.PromoTitle,
-				UsedBy: o.UserName + " (@" + o.Username + ")",
-				OrderID: o.ID, Discount: o.Discount, CreatedAt: o.CreatedAt,
+				UsedBy:   o.UserName,
+				Username: o.Username,
+				OrderID:  o.ID, Discount: o.Discount, CreatedAt: o.CreatedAt,
 			})
 		}
 	}
 	tplAdmin.ExecuteTemplate(w, "admin.html", AdminPage{
-		PageData:   PageData{Title: "Dashboard Admin", Session: sess},
-		Orders:     allOrders,
-		PromoUsage: promoStats,
-		TotalRev:   totalRev,
-		TodayRev:   todayRev,
+		PageData:     PageData{Title: "Dashboard Admin", Session: sess},
+		Orders:       allOrders,
+		PromoUsage:   promoStats,
+		TotalRev:     totalRev,
+		TodayRev:     todayRev,
+		TotalOrders:  len(allOrders),
+		PendingCount: pendingCount,
+		PaidCount:    paidCount,
+		MenuItems:    menuItems,
+		Branches:     branches,
+		Promos:       promos,
+		Users:        allUsers,
 	})
 }
 
@@ -740,12 +902,97 @@ func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	for i := range orders {
 		if orders[i].ID == orderID {
 			orders[i].Status = status
+			if status == "paid" && orders[i].PaidAt == nil {
+				now := time.Now()
+				orders[i].PaidAt = &now
+			}
 			break
 		}
 	}
 	mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// Admin: Create order as cashier
+func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
+		http.Error(w, "Unauthorized", 403)
+		return
+	}
+
+	customerName := r.FormValue("customer_name")
+	branch := r.FormValue("branch")
+	promoCode := strings.ToUpper(strings.TrimSpace(r.FormValue("promo_code")))
+	itemNames := r.Form["items[]"]
+	itemQtys := r.Form["qtys[]"]
+
+	if customerName == "" || branch == "" || len(itemNames) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "error", "message": "Data tidak lengkap"})
+		return
+	}
+
+	var cartItems []CartItem
+	for idx, name := range itemNames {
+		qty := 1
+		if idx < len(itemQtys) {
+			qty, _ = strconv.Atoi(itemQtys[idx])
+			if qty < 1 {
+				qty = 1
+			}
+		}
+		for _, mi := range menuItems {
+			if mi.Name == name {
+				cartItems = append(cartItems, CartItem{Item: mi, Qty: qty, Subtotal: qty * mi.Price})
+				break
+			}
+		}
+	}
+
+	subtotal := cartSubtotal(cartItems)
+	discount := 0
+	promoTitle := ""
+	if promoCode != "" {
+		p := findPromo(promoCode)
+		if p != nil {
+			discount = subtotal * p.Discount / 100
+			promoTitle = p.Title
+		} else {
+			promoCode = ""
+		}
+	}
+
+	order := Order{
+		ID:         "ORD-" + randID(),
+		UserID:     "walk-in",
+		Username:   "walk-in",
+		UserName:   customerName,
+		Branch:     branch,
+		Items:      cartItems,
+		PromoCode:  promoCode,
+		PromoTitle: promoTitle,
+		Discount:   discount,
+		Subtotal:   subtotal,
+		Total:      subtotal - discount,
+		Status:     "paid",
+		PayMethod:  r.FormValue("pay_method"),
+		CreatedAt:  time.Now(),
+	}
+	now := time.Now()
+	order.PaidAt = &now
+
+	mu.Lock()
+	orders = append(orders, order)
+	mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   "ok",
+		"order_id": order.ID,
+		"total":    order.Total,
+	})
 }
 
 func main() {
@@ -761,21 +1008,24 @@ func main() {
 
 	// Auth
 	mux.HandleFunc("/login", loginHandler)
+	mux.HandleFunc("/register", registerHandler)
 	mux.HandleFunc("GET /logout", logoutHandler)
 
 	// User order flow
-	mux.HandleFunc("GET /order", requireLogin(orderHandler))
-	mux.HandleFunc("POST /cart/add", requireLogin(addToCartHandler))
-	mux.HandleFunc("POST /cart/remove", requireLogin(removeFromCartHandler))
-	mux.HandleFunc("POST /order/branch", requireLogin(setBranchHandler))
-	mux.HandleFunc("POST /order/promo", requireLogin(applyPromoHandler))
-	mux.HandleFunc("POST /order/promo/remove", requireLogin(removePromoHandler))
-	mux.HandleFunc("POST /checkout", requireLogin(checkoutHandler))
+	mux.HandleFunc("GET /order", requireUser(orderHandler))
+	mux.HandleFunc("POST /cart/add", requireUser(addToCartHandler))
+	mux.HandleFunc("POST /cart/remove", requireUser(removeFromCartHandler))
+	mux.HandleFunc("POST /order/branch", requireUser(setBranchHandler))
+	mux.HandleFunc("POST /order/promo", requireUser(applyPromoHandler))
+	mux.HandleFunc("POST /order/promo/remove", requireUser(removePromoHandler))
+	mux.HandleFunc("POST /checkout", requireUser(checkoutHandler))
 	mux.HandleFunc("/payment/", requireLogin(paymentHandler))
+	mux.HandleFunc("GET /orders", requireUser(orderHistoryHandler))
 
 	// Admin
 	mux.HandleFunc("GET /admin", adminHandler)
 	mux.HandleFunc("POST /admin/order/update", adminUpdateOrderHandler)
+	mux.HandleFunc("POST /admin/order/create", adminCreateOrderHandler)
 
 	log.Println("Server berjalan di http://localhost:8000")
 	log.Fatal(http.ListenAndServe("localhost:8000", mux))
