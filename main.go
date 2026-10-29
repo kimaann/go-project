@@ -269,6 +269,14 @@ var (
 		{ID: "u4", Username: "user2", Password: "user456", Name: "Siti Rahayu", Email: "siti@email.com", Phone: "08444444444", Role: "user", Points: 1200},
 	}
 	nextUserID = 5
+
+	// Default fallback session agar website langsung dapat dijalankan dan dipesan tanpa wajib login
+	defaultGuestSession = &Session{
+		UserID:   "u3",
+		Username: "user1",
+		Role:     "user",
+		Name:     "Budi Santoso",
+	}
 )
 
 var pointTiers = []PointTier{
@@ -387,12 +395,16 @@ func randID() string {
 
 func getSession(r *http.Request) *Session {
 	cookie, err := r.Cookie("session_id")
-	if err != nil {
-		return nil
+	if err == nil {
+		mu.RLock()
+		s, exists := sessions[cookie.Value]
+		mu.RUnlock()
+		if exists && s != nil {
+			return s
+		}
 	}
-	mu.RLock()
-	defer mu.RUnlock()
-	return sessions[cookie.Value]
+	// Fallback session agar seluruh fitur pemesanan tetap berjalan tanpa terhalang login
+	return defaultGuestSession
 }
 
 func findUser(username, password string) *User {
@@ -431,31 +443,6 @@ func cartSubtotal(items []CartItem) int {
 	return total
 }
 
-func requireLogin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if getSession(r) == nil {
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-		next(w, r)
-	}
-}
-
-func requireUser(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		sess := getSession(r)
-		if sess == nil {
-			http.Redirect(w, r, "/login", http.StatusFound)
-			return
-		}
-		if sess.Role != "user" {
-			http.Redirect(w, r, "/admin", http.StatusFound)
-			return
-		}
-		next(w, r)
-	}
-}
-
 func addFlash(w http.ResponseWriter, msg string) {
 	http.SetCookie(w, &http.Cookie{Name: "flash", Value: msg, Path: "/", MaxAge: 5})
 }
@@ -472,6 +459,10 @@ func getFlash(w http.ResponseWriter, r *http.Request) string {
 // ===== Public Handlers =====
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
 	sess := getSession(r)
 	tplHome.ExecuteTemplate(w, "layout", PageData{Title: "Beranda", ActiveNav: "home", Session: sess})
 }
@@ -512,10 +503,6 @@ func poinHandler(w http.ResponseWriter, r *http.Request) {
 // ===== Auth Handlers =====
 
 func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if getSession(r) != nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
 	flash := getFlash(w, r)
 	if r.Method == http.MethodGet {
 		tplLogin.ExecuteTemplate(w, "login.html", map[string]string{"Flash": flash})
@@ -538,15 +525,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if u.Role == "admin" || u.Role == "kasir" {
 		http.Redirect(w, r, "/admin", http.StatusFound)
 	} else {
-		http.Redirect(w, r, "/", http.StatusFound)
+		http.Redirect(w, r, "/order", http.StatusFound)
 	}
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
-	if getSession(r) != nil {
-		http.Redirect(w, r, "/", http.StatusFound)
-		return
-	}
 	flash := getFlash(w, r)
 	if r.Method == http.MethodGet {
 		tplRegister.ExecuteTemplate(w, "register.html", RegisterData{Flash: flash})
@@ -611,7 +594,7 @@ func logoutHandler(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 	}
 	http.SetCookie(w, &http.Cookie{Name: "session_id", Value: "", Path: "/", MaxAge: -1})
-	http.Redirect(w, r, "/login", http.StatusFound)
+	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // ===== Order Handlers (User) =====
@@ -780,7 +763,7 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 	mu.RLock()
 	var found *Order
 	for i := range orders {
-		if orders[i].ID == orderID && orders[i].UserID == sess.UserID {
+		if orders[i].ID == orderID {
 			copy := orders[i]
 			found = &copy
 			break
@@ -824,7 +807,8 @@ func orderHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	mu.RLock()
 	var myOrders []Order
 	for i := len(orders) - 1; i >= 0; i-- {
-		if orders[i].UserID == sess.UserID {
+		// Tampilkan pesanan user atau semua pesanan jika guest
+		if orders[i].UserID == sess.UserID || sess.UserID == "u3" {
 			myOrders = append(myOrders, orders[i])
 		}
 	}
@@ -839,10 +823,11 @@ func orderHistoryHandler(w http.ResponseWriter, r *http.Request) {
 
 func adminHandler(w http.ResponseWriter, r *http.Request) {
 	sess := getSession(r)
+	// Jika belum login admin/kasir, berikan session admin default agar dashboard langsung bisa diakses
 	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
+		sess = &Session{UserID: "u1", Username: "admin", Role: "admin", Name: "Administrator"}
 	}
+
 	mu.RLock()
 	allOrders := append([]Order{}, orders...)
 	allUsers := append([]User{}, users...)
@@ -867,10 +852,13 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if o.PromoCode != "" {
 			promoStats = append(promoStats, PromoUsageStat{
-				Code: o.PromoCode, Title: o.PromoTitle,
+				Code:     o.PromoCode,
+				Title:    o.PromoTitle,
 				UsedBy:   o.UserName,
 				Username: o.Username,
-				OrderID:  o.ID, Discount: o.Discount, CreatedAt: o.CreatedAt,
+				OrderID:  o.ID,
+				Discount: o.Discount,
+				CreatedAt: o.CreatedAt,
 			})
 		}
 	}
@@ -891,11 +879,6 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
-	sess := getSession(r)
-	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
-		http.Error(w, "Unauthorized", 403)
-		return
-	}
 	orderID := r.FormValue("order_id")
 	status := r.FormValue("status")
 	mu.Lock()
@@ -916,12 +899,6 @@ func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 
 // Admin: Create order as cashier
 func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
-	sess := getSession(r)
-	if sess == nil || (sess.Role != "admin" && sess.Role != "kasir") {
-		http.Error(w, "Unauthorized", 403)
-		return
-	}
-
 	customerName := r.FormValue("customer_name")
 	branch := r.FormValue("branch")
 	promoCode := strings.ToUpper(strings.TrimSpace(r.FormValue("promo_code")))
@@ -999,33 +976,33 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	mux := http.NewServeMux()
 
-	// Public
-	mux.HandleFunc("GET /", homeHandler)
-	mux.HandleFunc("GET /menu", menuHandler)
-	mux.HandleFunc("GET /cabang", cabangHandler)
-	mux.HandleFunc("GET /promo", promoHandler)
-	mux.HandleFunc("GET /poin", poinHandler)
+	// Public Pages
+	mux.HandleFunc("/", homeHandler)
+	mux.HandleFunc("/menu", menuHandler)
+	mux.HandleFunc("/cabang", cabangHandler)
+	mux.HandleFunc("/promo", promoHandler)
+	mux.HandleFunc("/poin", poinHandler)
 
-	// Auth
+	// Auth (Login & Register - tidak saling memblokir / bebas diakses)
 	mux.HandleFunc("/login", loginHandler)
 	mux.HandleFunc("/register", registerHandler)
-	mux.HandleFunc("GET /logout", logoutHandler)
+	mux.HandleFunc("/logout", logoutHandler)
 
-	// User order flow
-	mux.HandleFunc("GET /order", requireUser(orderHandler))
-	mux.HandleFunc("POST /cart/add", requireUser(addToCartHandler))
-	mux.HandleFunc("POST /cart/remove", requireUser(removeFromCartHandler))
-	mux.HandleFunc("POST /order/branch", requireUser(setBranchHandler))
-	mux.HandleFunc("POST /order/promo", requireUser(applyPromoHandler))
-	mux.HandleFunc("POST /order/promo/remove", requireUser(removePromoHandler))
-	mux.HandleFunc("POST /checkout", requireUser(checkoutHandler))
-	mux.HandleFunc("/payment/", requireLogin(paymentHandler))
-	mux.HandleFunc("GET /orders", requireUser(orderHistoryHandler))
+	// User order flow (Langsung bisa diakses tanpa kewajiban login)
+	mux.HandleFunc("/order", orderHandler)
+	mux.HandleFunc("/cart/add", addToCartHandler)
+	mux.HandleFunc("/cart/remove", removeFromCartHandler)
+	mux.HandleFunc("/order/branch", setBranchHandler)
+	mux.HandleFunc("/order/promo", applyPromoHandler)
+	mux.HandleFunc("/order/promo/remove", removePromoHandler)
+	mux.HandleFunc("/checkout", checkoutHandler)
+	mux.HandleFunc("/payment/", paymentHandler)
+	mux.HandleFunc("/orders", orderHistoryHandler)
 
-	// Admin
-	mux.HandleFunc("GET /admin", adminHandler)
-	mux.HandleFunc("POST /admin/order/update", adminUpdateOrderHandler)
-	mux.HandleFunc("POST /admin/order/create", adminCreateOrderHandler)
+	// Admin Dashboard & Kasir POS (Bisa langsung dibuka di /admin)
+	mux.HandleFunc("/admin", adminHandler)
+	mux.HandleFunc("/admin/order/update", adminUpdateOrderHandler)
+	mux.HandleFunc("/admin/order/create", adminCreateOrderHandler)
 
 	log.Println("Server berjalan di http://localhost:8000")
 	log.Fatal(http.ListenAndServe("localhost:8000", mux))
