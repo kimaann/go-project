@@ -133,6 +133,17 @@ type PromoPage struct {
 type PointPage struct {
 	PageData
 	Tiers []PointTier
+
+	// Data saldo poin member (diisi bila session ber-role user).
+	ActivePoints     int
+	RupiahValue      int
+	ExpiringSoon     int
+	ExpiringRupiah   int
+	NextExpiryText   string
+	LifetimeEarned   int
+	LifetimeRedeemed int
+	Lots             []PointLot
+	Ledger           []PointLedgerEntry
 }
 
 type OrderPage struct {
@@ -383,6 +394,7 @@ var (
 	tplPayment      = parsePage("templates/payment.html")
 	tplOrderHistory = parsePage("templates/order_history.html")
 	tplAdmin        = parseSimple("admin.html", "templates/admin.html")
+	tplPointReport  = parsePage("templates/poin_report.html")
 )
 
 // ===== Helper Functions =====
@@ -475,6 +487,13 @@ func initDB() error {
 			}
 		}
 		log.Println("Data akun awal (admin, kasir, user1, user2) berhasil di-seed ke kopiku_db")
+	}
+
+	// Siapkan tabel dan mesin poin (lot, penukaran, ledger).
+	pointCtx, pointCancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer pointCancel()
+	if err := initPointsSchema(pointCtx); err != nil {
+		return fmt.Errorf("gagal menyiapkan sistem poin: %w", err)
 	}
 
 	return nil
@@ -678,10 +697,29 @@ func promoHandler(w http.ResponseWriter, r *http.Request) {
 
 func poinHandler(w http.ResponseWriter, r *http.Request) {
 	sess := getSession(r)
-	tplPoin.ExecuteTemplate(w, "layout", PointPage{
-		PageData: PageData{Title: "Sistem Poin", ActiveNav: "poin", Session: sess},
+	page := PointPage{
+		PageData: PageData{Title: "Sistem Poin", ActiveNav: "poin", Session: sess, Flash: getFlash(w, r)},
 		Tiers:    pointTiers,
-	})
+	}
+
+	// Tampilkan saldo poin aktif untuk member yang sudah login.
+	if sess != nil && sess.Role == "user" {
+		if summary, lots, ledger, err := GetUserPointDetail(sess.UserID); err != nil {
+			log.Printf("Gagal memuat saldo poin pengguna: %v", err)
+		} else {
+			page.ActivePoints = summary.ActivePoints
+			page.RupiahValue = summary.RupiahValue
+			page.ExpiringSoon = summary.ExpiringSoon
+			page.ExpiringRupiah = summary.ExpiringRupiah
+			page.NextExpiryText = summary.NextExpiryText
+			page.LifetimeEarned = summary.LifetimeEarned
+			page.LifetimeRedeemed = summary.LifetimeRedeemed
+			page.Lots = lots
+			page.Ledger = ledger
+		}
+	}
+
+	tplPoin.ExecuteTemplate(w, "layout", page)
 }
 
 // ===== Auth Handlers =====
@@ -1045,8 +1083,8 @@ func paymentHandler(w http.ResponseWriter, r *http.Request) {
 		mu.Unlock()
 
 		if pointsUserID != "" && !strings.HasPrefix(pointsUserID, "guest-") && pointsUserID != "walk-in" && pointsToAdd > 0 {
-			if _, err := db.ExecContext(context.Background(),
-				"UPDATE users SET points = points + ? WHERE id = ?", pointsToAdd, pointsUserID); err != nil {
+			// Poin dicatat sebagai lot berumur 6 bulan + entri ledger.
+			if _, err := AddPoints(pointsUserID, pointsToAdd, orderID, "Poin transaksi "+orderID); err != nil {
 				log.Printf("Gagal menambahkan poin pelanggan: %v", err)
 			}
 		}
@@ -1147,9 +1185,11 @@ func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	orderID := r.FormValue("order_id")
 	status := r.FormValue("status")
+	oldStatus := ""
 	mu.Lock()
 	for i := range orders {
 		if orders[i].ID == orderID {
+			oldStatus = orders[i].Status
 			orders[i].Status = status
 			if status == "paid" && orders[i].PaidAt == nil {
 				now := time.Now()
@@ -1159,6 +1199,21 @@ func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mu.Unlock()
+
+	// Sinkronkan poin saat pesanan dibatalkan / diaktifkan kembali.
+	if oldStatus != "" && oldStatus != status {
+		switch {
+		case status == "cancelled":
+			if err := ApplyOrderCancellation(orderID); err != nil {
+				log.Printf("Gagal memproses pembatalan poin pesanan %s: %v", orderID, err)
+			}
+		case oldStatus == "cancelled":
+			if err := ApplyOrderReactivation(orderID); err != nil {
+				log.Printf("Gagal memproses pengaktifan ulang poin pesanan %s: %v", orderID, err)
+			}
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -1279,6 +1334,15 @@ func main() {
 	mux.HandleFunc("/admin", adminHandler)
 	mux.HandleFunc("/admin/order/update", adminUpdateOrderHandler)
 	mux.HandleFunc("/admin/order/create", adminCreateOrderHandler)
+
+	// Poin: lot, penukaran FIFO, pembalikan, restorasi, dan laporan.
+	mux.HandleFunc("/admin/poin", pointsReportHandler)
+	mux.HandleFunc("/admin/poin/add", pointsAddHandler)
+	mux.HandleFunc("/admin/poin/redeem", pointsRedeemHandler)
+	mux.HandleFunc("/admin/poin/reverse", pointsReverseHandler)
+	mux.HandleFunc("/admin/poin/restore", pointsRestoreHandler)
+	mux.HandleFunc("/poin/redeem", userRedeemPointsHandler)
+	mux.HandleFunc("/api/points/balance", apiPointsBalanceHandler)
 
 	server := &http.Server{
 		Addr:              "localhost:8000",

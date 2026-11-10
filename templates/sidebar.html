@@ -122,6 +122,20 @@
 {{end}}
 {{end}}
 
+{{if .Session}}
+{{if or (eq .Session.Role "admin") (eq .Session.Role "kasir")}}
+<hr class="nav-divider">
+<p class="nav-section-label">Staff</p>
+
+<a href="/admin" class="nav-item {{if eq .ActiveNav "admin"}}active{{end}}">
+    <span class="nav-icon">📊</span> Dashboard Admin
+</a>
+<a href="/admin/poin" class="nav-item {{if eq .ActiveNav "adminpoin"}}active{{end}}">
+    <span class="nav-icon">📈</span> Laporan Poin
+</a>
+{{end}}
+{{end}}
+
 {{if not .Session}}
 <hr class="nav-divider">
 <p class="nav-section-label">Akun</p>

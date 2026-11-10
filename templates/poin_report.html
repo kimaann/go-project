@@ -1,0 +1,436 @@
+{{define "content"}}
+<style>
+    .rpt-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+    .rpt-header h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 30px;
+        color: var(--dark-roast);
+        margin-bottom: 4px;
+    }
+    .rpt-header p { color: var(--text-muted); font-size: 14px; }
+    .rpt-stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    .rpt-stat {
+        background: var(--white);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 18px 20px;
+        border-top: 3px solid var(--caramel);
+    }
+    .rpt-stat .label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+    .rpt-stat .value {
+        font-size: 24px;
+        font-weight: 800;
+        color: var(--dark-roast);
+        line-height: 1.2;
+    }
+    .rpt-stat .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .rpt-panel {
+        background: var(--white);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px 24px;
+        margin-bottom: 24px;
+    }
+    .rpt-panel h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px;
+        color: var(--dark-roast);
+        margin-bottom: 14px;
+    }
+    .rpt-panel h2 small {
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-muted);
+        margin-left: 8px;
+    }
+    .rpt-scroll { overflow-x: auto; }
+    .rpt-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        white-space: nowrap;
+    }
+    .rpt-table th {
+        background: var(--dark-roast);
+        color: var(--cream);
+        padding: 11px 12px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 12px;
+    }
+    .rpt-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--cream);
+        color: var(--text-dark);
+    }
+    .rpt-table tbody tr:hover { background: var(--milk); }
+    .rpt-table tbody tr:last-child td { border-bottom: none; }
+    .rpt-mono { font-family: monospace; font-size: 12px; }
+    .rpt-muted { color: var(--text-muted); }
+    .rpt-points { font-weight: 700; color: var(--caramel); }
+    .rpt-money { font-weight: 700; color: var(--dark-roast); }
+    .rpt-pill {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    .rpt-pill.active { background: #e8f5e9; color: #2e7d32; }
+    .rpt-pill.exhausted { background: #f5f5f5; color: #616161; }
+    .rpt-pill.expired { background: #fce4ec; color: #c62828; }
+    .rpt-pill.restored { background: #fff3e0; color: #e65100; }
+    .rpt-pill.reapplied { background: #e3f2fd; color: #1565c0; }
+    .rpt-plus { color: #2e7d32; font-weight: 700; }
+    .rpt-minus { color: #c62828; font-weight: 700; }
+    .rpt-forms {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+    .rpt-form {
+        border: 1px solid var(--cream);
+        border-radius: 12px;
+        padding: 16px;
+        background: var(--milk);
+    }
+    .rpt-form h3 { font-size: 14px; margin-bottom: 4px; color: var(--dark-roast); }
+    .rpt-form p { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+    .rpt-form label {
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        margin: 8px 0 4px;
+    }
+    .rpt-form input {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid #e2d5c3;
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        background: var(--white);
+    }
+    .rpt-form button { margin-top: 12px; width: 100%; }
+    .rpt-note {
+        background: #fff8e1;
+        border-left: 4px solid var(--caramel);
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 13px;
+        color: var(--medium);
+        margin-bottom: 24px;
+        line-height: 1.6;
+    }
+    @media (max-width: 1100px) {
+        .rpt-stats { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 900px) {
+        .rpt-stats { grid-template-columns: repeat(2, 1fr); }
+        .rpt-forms { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+        .rpt-stats { grid-template-columns: 1fr; }
+        .rpt-header { flex-direction: column; }
+    }
+</style>
+
+<div class="rpt-header">
+    <div>
+        <h1>📈 Laporan Poin Aktif</h1>
+        <p>Poin yang masih berlaku dan nilai rupiahnya. Dibuat {{formatTime .Report.GeneratedAt}}.</p>
+    </div>
+    <a href="/admin" class="btn btn-outline">← Dashboard</a>
+</div>
+
+{{if .Flash}}
+<div class="rpt-note" style="border-left-color:#2e7d32;background:#e8f5e9;color:#1b5e20;">✅ {{.Flash}}</div>
+{{end}}
+
+<div class="rpt-note">
+    <strong>Aturan:</strong> 1 poin = {{rupiah .Report.RupiahPerPoint}} &nbsp;•&nbsp;
+    masa berlaku {{.Report.ValidityMonths}} bulan &nbsp;•&nbsp;
+    penukaran memakai FIFO (poin yang paling cepat kedaluwarsa dipakai lebih dulu) &nbsp;•&nbsp;
+    ambang "akan kedaluwarsa" {{.Report.ExpiryWarningDays}} hari.
+</div>
+
+<div class="rpt-stats">
+    <div class="rpt-stat">
+        <div class="label">Total Poin Aktif</div>
+        <div class="value">{{.Report.TotalActivePoints}}</div>
+        <div class="sub">Seluruh member</div>
+    </div>
+    <div class="rpt-stat">
+        <div class="label">Nilai Rupiah</div>
+        <div class="value">{{rupiah .Report.TotalRupiahValue}}</div>
+        <div class="sub">Poin aktif × {{rupiah .Report.RupiahPerPoint}}</div>
+    </div>
+    <div class="rpt-stat">
+        <div class="label">Akan Kedaluwarsa</div>
+        <div class="value">{{.Report.TotalExpiringSoon}}</div>
+        <div class="sub">Dalam {{.Report.ExpiryWarningDays}} hari</div>
+    </div>
+    <div class="rpt-stat">
+        <div class="label">Total Ditukar</div>
+        <div class="value">{{.Report.TotalRedeemed}}</div>
+        <div class="sub">Sepanjang waktu</div>
+    </div>
+    <div class="rpt-stat">
+        <div class="label">Total Kedaluwarsa</div>
+        <div class="value">{{.Report.TotalExpired}}</div>
+        <div class="sub">Poin hangus</div>
+    </div>
+</div>
+
+<div class="rpt-panel">
+    <h2>Ringkasan per Pengguna <small>{{len .Report.Users}} pengguna</small></h2>
+    <div class="rpt-scroll">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>Nama</th>
+                    <th>Username</th>
+                    <th>Poin Aktif</th>
+                    <th>Nilai Rupiah</th>
+                    <th>Akan Kedaluwarsa</th>
+                    <th>Expiry Terdekat</th>
+                    <th>Total Masuk</th>
+                    <th>Total Ditukar</th>
+                    <th>Lot Aktif</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Users}}
+                <tr>
+                    <td style="font-weight:600;">{{.Name}}</td>
+                    <td class="rpt-muted">@{{.Username}}</td>
+                    <td class="rpt-points">{{.ActivePoints}}</td>
+                    <td class="rpt-money">{{rupiah .RupiahValue}}</td>
+                    <td>{{if gt .ExpiringSoon 0}}<span class="rpt-pill restored">{{.ExpiringSoon}}</span>{{else}}-{{end}}</td>
+                    <td class="rpt-muted">{{if .NextExpiryText}}{{.NextExpiryText}}{{else}}-{{end}}</td>
+                    <td>{{.LifetimeEarned}}</td>
+                    <td>{{.LifetimeRedeemed}}</td>
+                    <td>{{.ActiveLots}}</td>
+                </tr>
+                {{else}}
+                <tr><td colspan="9" style="text-align:center;padding:30px;" class="rpt-muted">Belum ada data pengguna.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="rpt-panel">
+    <h2>Lot Poin Aktif <small>urut expiry terdekat</small></h2>
+    <div class="rpt-scroll">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>ID Lot</th>
+                    <th>Pengguna</th>
+                    <th>Sisa / Total</th>
+                    <th>Nilai</th>
+                    <th>Diperoleh</th>
+                    <th>Kedaluwarsa</th>
+                    <th>Sisa Hari</th>
+                    <th>Pesanan</th>
+                    <th>Catatan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Lots}}
+                <tr>
+                    <td class="rpt-mono">#{{.ID}}</td>
+                    <td>
+                        <div style="font-weight:600;">{{.UserName}}</div>
+                        <div class="rpt-muted" style="font-size:11px;">@{{.Username}}</div>
+                    </td>
+                    <td><span class="rpt-points">{{.PointsRemaining}}</span> / {{.PointsTotal}}</td>
+                    <td class="rpt-money">{{rupiah .ValueRupiah}}</td>
+                    <td class="rpt-muted">{{formatTime .EarnedAt}}</td>
+                    <td>{{formatTime .ExpiresAt}}</td>
+                    <td>{{.DaysLeft}} hari</td>
+                    <td class="rpt-mono">{{if .OrderID}}{{.OrderID}}{{else}}-{{end}}</td>
+                    <td class="rpt-muted" style="max-width:220px;white-space:normal;">{{.Note}}</td>
+                </tr>
+                {{else}}
+                <tr><td colspan="9" style="text-align:center;padding:30px;" class="rpt-muted">Tidak ada lot poin aktif.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="rpt-panel">
+    <h2>Riwayat Penukaran <small>100 terbaru</small></h2>
+    <div class="rpt-scroll">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Pengguna</th>
+                    <th>Poin</th>
+                    <th>Nilai</th>
+                    <th>Voucher</th>
+                    <th>Pesanan</th>
+                    <th>Status</th>
+                    <th>Waktu</th>
+                    <th>Catatan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Redemptions}}
+                <tr>
+                    <td class="rpt-mono">#{{.ID}}</td>
+                    <td>
+                        <div style="font-weight:600;">{{.UserName}}</div>
+                        <div class="rpt-muted" style="font-size:11px;">@{{.Username}}</div>
+                    </td>
+                    <td class="rpt-points">{{.Points}}</td>
+                    <td class="rpt-money">{{rupiah .RupiahValue}}</td>
+                    <td class="rpt-mono">{{if .VoucherCode}}{{.VoucherCode}}{{else}}-{{end}}</td>
+                    <td class="rpt-mono">{{if .OrderID}}{{.OrderID}}{{else}}-{{end}}</td>
+                    <td>
+                        <span class="rpt-pill {{.Status}}">
+                            {{if eq .Status "active"}}Aktif
+                            {{else if eq .Status "restored"}}Dipulihkan
+                            {{else if eq .Status "reapplied"}}Aktif Kembali
+                            {{else}}{{.Status}}{{end}}
+                        </span>
+                    </td>
+                    <td class="rpt-muted">{{formatTime .CreatedAt}}</td>
+                    <td class="rpt-muted" style="max-width:220px;white-space:normal;">{{.Note}}</td>
+                </tr>
+                {{else}}
+                <tr><td colspan="9" style="text-align:center;padding:30px;" class="rpt-muted">Belum ada penukaran poin.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="rpt-panel">
+    <h2>Ledger Poin Terbaru <small>150 entri</small></h2>
+    <div class="rpt-scroll">
+        <table class="rpt-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Pengguna</th>
+                    <th>Tipe</th>
+                    <th>Delta</th>
+                    <th>Saldo</th>
+                    <th>Lot</th>
+                    <th>Penukaran</th>
+                    <th>Pesanan</th>
+                    <th>Catatan</th>
+                    <th>Waktu</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Report.Ledger}}
+                <tr>
+                    <td class="rpt-mono">#{{.ID}}</td>
+                    <td>
+                        <div style="font-weight:600;">{{.UserName}}</div>
+                        <div class="rpt-muted" style="font-size:11px;">@{{.Username}}</div>
+                    </td>
+                    <td>{{.TypeLabel}}</td>
+                    <td>
+                        {{if gt .PointsDelta 0}}<span class="rpt-plus">+{{.PointsDelta}}</span>
+                        {{else}}<span class="rpt-minus">{{.PointsDelta}}</span>{{end}}
+                    </td>
+                    <td style="font-weight:600;">{{.BalanceAfter}}</td>
+                    <td class="rpt-mono">{{if .LotID}}#{{.LotID}}{{else}}-{{end}}</td>
+                    <td class="rpt-mono">{{if .RedemptionID}}#{{.RedemptionID}}{{else}}-{{end}}</td>
+                    <td class="rpt-mono">{{if .OrderID}}{{.OrderID}}{{else}}-{{end}}</td>
+                    <td class="rpt-muted" style="max-width:240px;white-space:normal;">{{.Note}}</td>
+                    <td class="rpt-muted">{{formatTime .CreatedAt}}</td>
+                </tr>
+                {{else}}
+                <tr><td colspan="10" style="text-align:center;padding:30px;" class="rpt-muted">Ledger masih kosong.</td></tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="rpt-panel">
+    <h2>Operasi Poin</h2>
+    <div class="rpt-forms">
+        <form class="rpt-form" method="post" action="/admin/poin/add">
+            <h3>➕ Tambah Poin</h3>
+            <p>Membuat lot baru dengan masa berlaku {{.Report.ValidityMonths}} bulan.</p>
+            <label>Username</label>
+            <input type="text" name="username" placeholder="contoh: user1" required>
+            <label>Jumlah Poin</label>
+            <input type="number" name="points" min="1" placeholder="100" required>
+            <label>Order ID (opsional)</label>
+            <input type="text" name="order_id" placeholder="ORD-123456">
+            <label>Catatan</label>
+            <input type="text" name="note" placeholder="Bonus loyalitas">
+            <button type="submit" class="btn btn-primary">Tambah Poin</button>
+        </form>
+
+        <form class="rpt-form" method="post" action="/admin/poin/redeem">
+            <h3>🎁 Tukar Poin (FIFO)</h3>
+            <p>Memakai lot yang paling cepat kedaluwarsa terlebih dahulu.</p>
+            <label>Username</label>
+            <input type="text" name="username" placeholder="contoh: user1" required>
+            <label>Jumlah Poin</label>
+            <input type="number" name="points" min="1" placeholder="100" required>
+            <label>Order ID (opsional)</label>
+            <input type="text" name="order_id" placeholder="ORD-123456">
+            <label>Catatan</label>
+            <input type="text" name="note" placeholder="Tukar minuman gratis">
+            <button type="submit" class="btn btn-primary">Tukar Poin</button>
+        </form>
+
+        <form class="rpt-form" method="post" action="/admin/poin/reverse">
+            <h3>↩️ Pembalikan / Penarikan Poin</h3>
+            <p>Isi Order ID dan kosongkan jumlah untuk menarik poin milik pesanan.</p>
+            <label>Username</label>
+            <input type="text" name="username" placeholder="contoh: user1" required>
+            <label>Jumlah Poin (0 = ikut pesanan)</label>
+            <input type="number" name="points" min="0" value="0">
+            <label>Order ID (opsional)</label>
+            <input type="text" name="order_id" placeholder="ORD-123456">
+            <label>Catatan</label>
+            <input type="text" name="note" placeholder="Pembatalan transaksi">
+            <button type="submit" class="btn btn-primary">Tarik Poin</button>
+        </form>
+
+        <form class="rpt-form" method="post" action="/admin/poin/restore">
+            <h3>🔄 Restorasi Penukaran</h3>
+            <p>Mengembalikan poin dari penukaran yang dibatalkan ke lot asal.</p>
+            <label>ID Penukaran</label>
+            <input type="number" name="redemption_id" min="1" placeholder="1" required>
+            <label>Catatan</label>
+            <input type="text" name="note" placeholder="Pesanan dibatalkan">
+            <button type="submit" class="btn btn-primary">Pulihkan Poin</button>
+        </form>
+    </div>
+</div>
+{{end}}
