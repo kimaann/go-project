@@ -1296,6 +1296,1675 @@ func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+
+// ============================================================================
+// SISTEM POIN LOYALITAS (TERINTEGRASI DARI points*.go)
+// ============================================================================
+
+// ===== Aturan Bisnis Poin =====
+
+const (
+	// PointValidityMonths adalah masa berlaku poin sejak poin ditambahkan.
+	PointValidityMonths = 6
+	// PointsPerRupiah adalah nilai transaksi yang menghasilkan 1 poin.
+	PointsPerRupiah = 1000
+	// RupiahPerPoint adalah nilai tukar 1 poin saat ditukarkan.
+	// Selaras dengan tabel penukaran di halaman /poin: 100 poin = Rp 5.000.
+	RupiahPerPoint = 50
+	// PointExpiryWarningDays adalah ambang "akan kedaluwarsa" pada laporan.
+	PointExpiryWarningDays = 30
+	// MinRedeemPoints adalah minimum penukaran poin dari halaman pengguna.
+	MinRedeemPoints = 100
+)
+
+// ===== Error =====
+
+var (
+	ErrInvalidPointAmount  = fmt.Errorf("jumlah poin harus lebih dari nol")
+	ErrInsufficientPoints  = fmt.Errorf("saldo poin tidak mencukupi")
+	ErrRedemptionNotFound  = fmt.Errorf("data penukaran poin tidak ditemukan")
+	ErrRedemptionNotActive = fmt.Errorf("penukaran poin sudah dibatalkan atau dipulihkan")
+)
+
+// ===== Model =====
+
+// PointLot adalah satu batch poin yang masuk pada waktu tertentu.
+// Setiap lot memiliki masa berlaku sendiri sehingga penukaran dapat
+// memprioritaskan poin yang paling cepat kedaluwarsa (FIFO berdasarkan expiry).
+type PointLot struct {
+	ID              int64
+	UserID          string
+	OrderID         string
+	PointsTotal     int
+	PointsRemaining int
+	EarnedAt        time.Time
+	ExpiresAt       time.Time
+	Status          string
+	Note            string
+
+	// Field turunan untuk kebutuhan tampilan.
+	DaysLeft    int
+	ValueRupiah int
+	StatusLabel string
+}
+
+// PointAllocation mencatat lot mana saja yang dipakai pada satu penukaran.
+type PointAllocation struct {
+	LotID  int64 `json:"lot_id"`
+	Points int   `json:"points"`
+}
+
+// PointRedemption adalah satu transaksi penukaran poin beserta rincian lot
+// yang dikonsumsi. Rincian disimpan sebagai JSON agar pemulihan (restoration)
+// dapat mengembalikan poin ke lot asalnya.
+type PointRedemption struct {
+	ID          int64
+	UserID      string
+	UserName    string
+	Username    string
+	OrderID     string
+	Points      int
+	RupiahValue int
+	Allocations []PointAllocation
+	Status      string
+	VoucherCode string
+	Note        string
+	CreatedAt   time.Time
+	ReversedAt  *time.Time
+}
+
+// PointLedgerEntry adalah catatan audit setiap pergerakan poin.
+type PointLedgerEntry struct {
+	ID           int64
+	UserID       string
+	UserName     string
+	Username     string
+	LotID        *int64
+	RedemptionID *int64
+	OrderID      string
+	EntryType    string
+	TypeLabel    string
+	PointsDelta  int
+	BalanceAfter int
+	Note         string
+	CreatedAt    time.Time
+}
+
+// ===== Skema Database =====
+
+// initPointsSchema membuat tabel point_lots, point_redemptions, dan point_ledger
+// bila belum ada, lalu memigrasikan saldo users.points lama ke sistem lot.
+// Fungsi ini idempoten sehingga aman dipanggil setiap kali aplikasi start.
+func initPointsSchema(ctx context.Context) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS point_lots (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id VARCHAR(64) NOT NULL,
+			order_id VARCHAR(64) DEFAULT NULL,
+			points_total INT NOT NULL,
+			points_remaining INT NOT NULL,
+			earned_at DATETIME NOT NULL,
+			expires_at DATETIME NOT NULL,
+			status VARCHAR(16) NOT NULL DEFAULT 'active',
+			note VARCHAR(255) NOT NULL DEFAULT '',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_point_lots_user_fifo (user_id, status, expires_at, id),
+			KEY idx_point_lots_order (order_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS point_redemptions (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id VARCHAR(64) NOT NULL,
+			order_id VARCHAR(64) DEFAULT NULL,
+			points INT NOT NULL,
+			rupiah_value BIGINT NOT NULL,
+			allocations LONGTEXT DEFAULT NULL,
+			status VARCHAR(16) NOT NULL DEFAULT 'active',
+			voucher_code VARCHAR(40) DEFAULT NULL,
+			note VARCHAR(255) NOT NULL DEFAULT '',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			reversed_at DATETIME DEFAULT NULL,
+			PRIMARY KEY (id),
+			KEY idx_point_redemptions_user (user_id, created_at),
+			KEY idx_point_redemptions_order (order_id, status)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS point_ledger (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			user_id VARCHAR(64) NOT NULL,
+			lot_id BIGINT UNSIGNED DEFAULT NULL,
+			redemption_id BIGINT UNSIGNED DEFAULT NULL,
+			order_id VARCHAR(64) DEFAULT NULL,
+			entry_type VARCHAR(16) NOT NULL,
+			points_delta INT NOT NULL,
+			balance_after INT NOT NULL,
+			note VARCHAR(255) NOT NULL DEFAULT '',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_point_ledger_user (user_id, id),
+			KEY idx_point_ledger_order (order_id, entry_type),
+			KEY idx_point_ledger_lot (lot_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	}
+
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("gagal menyiapkan tabel poin: %w", err)
+		}
+	}
+
+	return backfillLegacyPointLots(ctx)
+}
+
+// backfillLegacyPointLots memindahkan saldo users.points yang sudah ada
+// sebelum fitur ini dipasang ke satu lot baru. Hanya dijalankan untuk user
+// yang belum memiliki lot sama sekali, sehingga aman dan tidak menggandakan saldo.
+func backfillLegacyPointLots(ctx context.Context) error {
+	rows, err := db.QueryContext(ctx, `
+		SELECT u.id, u.points
+		FROM users u
+		WHERE u.points > 0
+		  AND NOT EXISTS (SELECT 1 FROM point_lots l WHERE l.user_id = u.id)`)
+	if err != nil {
+		return fmt.Errorf("gagal membaca saldo poin lama: %w", err)
+	}
+
+	type legacyBalance struct {
+		userID string
+		points int
+	}
+	var balances []legacyBalance
+	for rows.Next() {
+		var b legacyBalance
+		if err := rows.Scan(&b.userID, &b.points); err != nil {
+			rows.Close()
+			return err
+		}
+		balances = append(balances, b)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	now := time.Now()
+	for _, b := range balances {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		res, err := tx.ExecContext(ctx, `
+			INSERT INTO point_lots
+				(user_id, order_id, points_total, points_remaining, earned_at, expires_at, status, note)
+			VALUES (?, NULL, ?, ?, ?, ?, 'active', ?)`,
+			b.userID, b.points, b.points, now, now.AddDate(0, PointValidityMonths, 0),
+			"Migrasi saldo poin lama")
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		lotID, _ := res.LastInsertId()
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, lot_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, ?, 'earn', ?, ?, ?)`,
+			b.userID, lotID, b.points, b.points, "Migrasi saldo poin lama"); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ===== Primitif Saldo =====
+
+// activeBalanceTx menghitung saldo poin aktif (belum kedaluwarsa) dalam transaksi.
+func activeBalanceTx(ctx context.Context, tx *sql.Tx, userID string, now time.Time) (int, error) {
+	var balance int
+	err := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(points_remaining), 0)
+		FROM point_lots
+		WHERE user_id = ? AND status = 'active' AND expires_at > ?`,
+		userID, now).Scan(&balance)
+	return balance, err
+}
+
+// expireLotsTx menandai lot yang sudah lewat masa berlaku dan mencatatnya ke ledger.
+// Saldo aktif tidak berubah karena lot kedaluwarsa memang tidak pernah dihitung.
+func expireLotsTx(ctx context.Context, tx *sql.Tx, userID string) (int, error) {
+	now := time.Now()
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, points_remaining
+		FROM point_lots
+		WHERE user_id = ? AND status = 'active' AND points_remaining > 0 AND expires_at <= ?
+		FOR UPDATE`, userID, now)
+	if err != nil {
+		return 0, err
+	}
+
+	type expiringLot struct {
+		id        int64
+		remaining int
+	}
+	var lots []expiringLot
+	for rows.Next() {
+		var l expiringLot
+		if err := rows.Scan(&l.id, &l.remaining); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		lots = append(lots, l)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(lots) == 0 {
+		return 0, nil
+	}
+
+	balance, err := activeBalanceTx(ctx, tx, userID, now)
+	if err != nil {
+		return 0, err
+	}
+
+	total := 0
+	for _, l := range lots {
+		if _, err := tx.ExecContext(ctx, `UPDATE point_lots SET status = 'expired' WHERE id = ?`, l.id); err != nil {
+			return 0, err
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, lot_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, ?, 'expire', ?, ?, ?)`,
+			userID, l.id, -l.remaining, balance, "Poin kedaluwarsa"); err != nil {
+			return 0, err
+		}
+		total += l.remaining
+	}
+	return total, nil
+}
+
+// syncLegacyPointsTx menyelaraskan kolom users.points (dipakai UI lama)
+// dengan saldo aktif dari sistem lot.
+func syncLegacyPointsTx(ctx context.Context, tx *sql.Tx, userID string, balance int) error {
+	_, err := tx.ExecContext(ctx, `UPDATE users SET points = ? WHERE id = ?`, balance, userID)
+	return err
+}
+
+// ActivePointBalance mengembalikan saldo poin aktif seorang pengguna.
+// Lot yang sudah kedaluwarsa ikut diproses (lazy expiration) sebelum dihitung.
+func ActivePointBalance(userID string) (int, error) {
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	if _, err := expireLotsTx(ctx, tx, userID); err != nil {
+		return 0, err
+	}
+	balance, err := activeBalanceTx(ctx, tx, userID, time.Now())
+	if err != nil {
+		return 0, err
+	}
+	if err := syncLegacyPointsTx(ctx, tx, userID, balance); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return balance, nil
+}
+
+// ===== Helper =====
+
+// newVoucherCode membuat kode voucher penukaran poin, mis. PTS-7F3A9C.
+func newVoucherCode() string {
+	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	buf := make([]byte, 6)
+	if _, err := crand.Read(buf); err != nil {
+		return fmt.Sprintf("PTS-%06d", time.Now().UnixNano()%1000000)
+	}
+	var b strings.Builder
+	b.WriteString("PTS-")
+	for _, v := range buf {
+		b.WriteByte(alphabet[int(v)%len(alphabet)])
+	}
+	return b.String()
+}
+
+func ledgerTypeLabel(entryType string) string {
+	switch entryType {
+	case "earn":
+		return "Poin Masuk"
+	case "redeem":
+		return "Penukaran"
+	case "reverse":
+		return "Pembalikan"
+	case "restore":
+		return "Restorasi"
+	case "expire":
+		return "Kedaluwarsa"
+	case "reapply":
+		return "Aktivasi Ulang"
+	default:
+		return "Penyesuaian"
+	}
+}
+
+func lotStatusLabel(status string) string {
+	switch status {
+	case "active":
+		return "Aktif"
+	case "exhausted":
+		return "Terpakai Habis"
+	case "expired":
+		return "Kedaluwarsa"
+	default:
+		return status
+	}
+}
+
+func daysUntil(t time.Time) int {
+	days := int(time.Until(t).Hours() / 24)
+	if days < 0 {
+		return 0
+	}
+	return days
+}
+
+// ===== Penambahan Poin =====
+
+// AddPoints menambahkan poin baru sebagai satu lot dengan masa berlaku
+// PointValidityMonths (6 bulan) sejak saat ini.
+func AddPoints(userID string, points int, orderID, note string) (*PointLot, error) {
+	if points <= 0 {
+		return nil, ErrInvalidPointAmount
+	}
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	lot, err := addPointsTx(ctx, tx, userID, points, orderID, note)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return lot, nil
+}
+
+func addPointsTx(ctx context.Context, tx *sql.Tx, userID string, points int, orderID, note string) (*PointLot, error) {
+	if _, err := expireLotsTx(ctx, tx, userID); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expiresAt := now.AddDate(0, PointValidityMonths, 0)
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO point_lots
+			(user_id, order_id, points_total, points_remaining, earned_at, expires_at, status, note)
+		VALUES (?, NULLIF(?, ''), ?, ?, ?, ?, 'active', ?)`,
+		userID, orderID, points, points, now, expiresAt, note)
+	if err != nil {
+		return nil, err
+	}
+	lotID, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	balance, err := activeBalanceTx(ctx, tx, userID, now)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO point_ledger
+			(user_id, lot_id, order_id, entry_type, points_delta, balance_after, note)
+		VALUES (?, ?, NULLIF(?, ''), 'earn', ?, ?, ?)`,
+		userID, lotID, orderID, points, balance, note); err != nil {
+		return nil, err
+	}
+	if err := syncLegacyPointsTx(ctx, tx, userID, balance); err != nil {
+		return nil, err
+	}
+
+	return &PointLot{
+		ID:              lotID,
+		UserID:          userID,
+		OrderID:         orderID,
+		PointsTotal:     points,
+		PointsRemaining: points,
+		EarnedAt:        now,
+		ExpiresAt:       expiresAt,
+		Status:          "active",
+		Note:            note,
+		DaysLeft:        daysUntil(expiresAt),
+		ValueRupiah:     points * RupiahPerPoint,
+		StatusLabel:     lotStatusLabel("active"),
+	}, nil
+}
+
+// ===== Penukaran Poin (FIFO) =====
+
+// RedeemPoints menukar poin dengan memprioritaskan lot yang paling cepat
+// kedaluwarsa (ORDER BY expires_at ASC, id ASC).
+func RedeemPoints(userID string, points int, orderID, note string) (*PointRedemption, error) {
+	if points <= 0 {
+		return nil, ErrInvalidPointAmount
+	}
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	redemption, err := redeemPointsTx(ctx, tx, userID, points, orderID, note, newVoucherCode())
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return redemption, nil
+}
+
+func redeemPointsTx(ctx context.Context, tx *sql.Tx, userID string, points int, orderID, note, voucher string) (*PointRedemption, error) {
+	if _, err := expireLotsTx(ctx, tx, userID); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, points_remaining
+		FROM point_lots
+		WHERE user_id = ? AND status = 'active' AND expires_at > ? AND points_remaining > 0
+		ORDER BY expires_at ASC, id ASC
+		FOR UPDATE`, userID, now)
+	if err != nil {
+		return nil, err
+	}
+
+	type availableLot struct {
+		id        int64
+		remaining int
+	}
+	var lots []availableLot
+	available := 0
+	for rows.Next() {
+		var l availableLot
+		if err := rows.Scan(&l.id, &l.remaining); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		lots = append(lots, l)
+		available += l.remaining
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if available < points {
+		return nil, fmt.Errorf("%w: saldo aktif %d poin, dibutuhkan %d poin", ErrInsufficientPoints, available, points)
+	}
+
+	allocations := make([]PointAllocation, 0, len(lots))
+	remaining := points
+	for _, l := range lots {
+		if remaining == 0 {
+			break
+		}
+		take := l.remaining
+		if take > remaining {
+			take = remaining
+		}
+		newRemaining := l.remaining - take
+		status := "active"
+		if newRemaining == 0 {
+			status = "exhausted"
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE point_lots SET points_remaining = ?, status = ? WHERE id = ?`,
+			newRemaining, status, l.id); err != nil {
+			return nil, err
+		}
+		allocations = append(allocations, PointAllocation{LotID: l.id, Points: take})
+		remaining -= take
+	}
+
+	allocationJSON, err := json.Marshal(allocations)
+	if err != nil {
+		return nil, err
+	}
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO point_redemptions
+			(user_id, order_id, points, rupiah_value, allocations, status, voucher_code, note)
+		VALUES (?, NULLIF(?, ''), ?, ?, ?, 'active', NULLIF(?, ''), ?)`,
+		userID, orderID, points, points*RupiahPerPoint, string(allocationJSON), voucher, note)
+	if err != nil {
+		return nil, err
+	}
+	redemptionID, err := res.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	balance := available
+	for _, allocation := range allocations {
+		balance -= allocation.Points
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, lot_id, redemption_id, order_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, ?, ?, NULLIF(?, ''), 'redeem', ?, ?, ?)`,
+			userID, allocation.LotID, redemptionID, orderID, -allocation.Points, balance, note); err != nil {
+			return nil, err
+		}
+	}
+	if err := syncLegacyPointsTx(ctx, tx, userID, balance); err != nil {
+		return nil, err
+	}
+
+	return &PointRedemption{
+		ID:          redemptionID,
+		UserID:      userID,
+		OrderID:     orderID,
+		Points:      points,
+		RupiahValue: points * RupiahPerPoint,
+		Allocations: allocations,
+		Status:      "active",
+		VoucherCode: voucher,
+		Note:        note,
+		CreatedAt:   now,
+	}, nil
+}
+
+// ===== Pembalikan (Deduction) =====
+
+// ReversePoints menarik poin kembali secara FIFO. Dipakai saat transaksi
+// yang menghasilkan poin dibatalkan. Bila saldo tidak cukup, seluruh saldo
+// aktif ditarik dan kekurangannya dilaporkan (shortfall).
+func ReversePoints(userID string, points int, orderID, note string) (deducted int, shortfall int, err error) {
+	if points <= 0 {
+		return 0, 0, ErrInvalidPointAmount
+	}
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
+	deducted, shortfall, err = reversePointsTx(ctx, tx, userID, points, orderID, note)
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return deducted, shortfall, nil
+}
+
+func reversePointsTx(ctx context.Context, tx *sql.Tx, userID string, points int, orderID, note string) (int, int, error) {
+	if _, err := expireLotsTx(ctx, tx, userID); err != nil {
+		return 0, 0, err
+	}
+
+	now := time.Now()
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, points_remaining
+		FROM point_lots
+		WHERE user_id = ? AND status = 'active' AND expires_at > ? AND points_remaining > 0
+		ORDER BY expires_at ASC, id ASC
+		FOR UPDATE`, userID, now)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	type availableLot struct {
+		id        int64
+		remaining int
+	}
+	var lots []availableLot
+	available := 0
+	for rows.Next() {
+		var l availableLot
+		if err := rows.Scan(&l.id, &l.remaining); err != nil {
+			rows.Close()
+			return 0, 0, err
+		}
+		lots = append(lots, l)
+		available += l.remaining
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+
+	deducted := points
+	if available < points {
+		deducted = available
+	}
+	shortfall := points - deducted
+
+	balance := available
+	remaining := deducted
+	for _, l := range lots {
+		if remaining == 0 {
+			break
+		}
+		take := l.remaining
+		if take > remaining {
+			take = remaining
+		}
+		newRemaining := l.remaining - take
+		status := "active"
+		if newRemaining == 0 {
+			status = "exhausted"
+		}
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE point_lots SET points_remaining = ?, status = ? WHERE id = ?`,
+			newRemaining, status, l.id); err != nil {
+			return 0, 0, err
+		}
+		balance -= take
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, lot_id, order_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, ?, NULLIF(?, ''), 'reverse', ?, ?, ?)`,
+			userID, l.id, orderID, -take, balance, note); err != nil {
+			return 0, 0, err
+		}
+		remaining -= take
+	}
+
+	if shortfall > 0 {
+		shortNote := fmt.Sprintf("%s (kekurangan %d poin tidak dapat ditarik)", note, shortfall)
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, order_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, NULLIF(?, ''), 'reverse', 0, ?, ?)`,
+			userID, orderID, balance, shortNote); err != nil {
+			return 0, 0, err
+		}
+	}
+	if err := syncLegacyPointsTx(ctx, tx, userID, balance); err != nil {
+		return 0, 0, err
+	}
+	return deducted, shortfall, nil
+}
+
+// ReverseOrderEarning menarik poin yang pernah diberikan untuk sebuah pesanan.
+// Hanya dilakukan bila siklus terakhir pesanan tersebut memang masih "earn".
+func ReverseOrderEarning(orderID, userID string) (int, int, error) {
+	ctx := context.Background()
+	var lastType string
+	err := db.QueryRowContext(ctx, `
+		SELECT entry_type FROM point_ledger
+		WHERE order_id = ? AND entry_type IN ('earn', 'reverse', 'reapply')
+		ORDER BY id DESC LIMIT 1`, orderID).Scan(&lastType)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	if lastType == "reverse" {
+		return 0, 0, nil
+	}
+
+	var lastReversalID int64
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(MAX(id), 0) FROM point_ledger
+		WHERE order_id = ? AND entry_type = 'reverse'`, orderID).Scan(&lastReversalID); err != nil {
+		return 0, 0, err
+	}
+	var awarded int
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(points_delta), 0) FROM point_ledger
+		WHERE order_id = ? AND user_id = ? AND entry_type IN ('earn', 'reapply') AND id > ?`,
+		orderID, userID, lastReversalID).Scan(&awarded); err != nil {
+		return 0, 0, err
+	}
+	if awarded <= 0 {
+		return 0, 0, nil
+	}
+	return ReversePoints(userID, awarded, orderID, "Pembatalan pesanan "+orderID)
+}
+
+// ===== Restorasi =====
+
+// RestoreRedemption mengembalikan poin yang sudah ditukar ke lot asalnya.
+// Jika lot asal sudah kedaluwarsa, dibuat lot pengganti dengan masa berlaku baru.
+func RestoreRedemption(redemptionID int64, note string) (*PointRedemption, int, error) {
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer tx.Rollback()
+
+	redemption, restored, err := restoreRedemptionTx(ctx, tx, redemptionID, note)
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, 0, err
+	}
+	return redemption, restored, nil
+}
+
+func restoreRedemptionTx(ctx context.Context, tx *sql.Tx, redemptionID int64, note string) (*PointRedemption, int, error) {
+	var (
+		r            PointRedemption
+		orderID      sql.NullString
+		voucher      sql.NullString
+		existingNote sql.NullString
+		allocationJS sql.NullString
+		reversedAt   sql.NullTime
+	)
+	err := tx.QueryRowContext(ctx, `
+		SELECT id, user_id, order_id, points, rupiah_value, allocations, status,
+		       voucher_code, note, created_at, reversed_at
+		FROM point_redemptions WHERE id = ? FOR UPDATE`, redemptionID).Scan(
+		&r.ID, &r.UserID, &orderID, &r.Points, &r.RupiahValue, &allocationJS,
+		&r.Status, &voucher, &existingNote, &r.CreatedAt, &reversedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, 0, ErrRedemptionNotFound
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	if r.Status != "active" {
+		return nil, 0, fmt.Errorf("%w (status: %s)", ErrRedemptionNotActive, r.Status)
+	}
+
+	r.OrderID = orderID.String
+	r.VoucherCode = voucher.String
+	if allocationJS.Valid && allocationJS.String != "" {
+		if err := json.Unmarshal([]byte(allocationJS.String), &r.Allocations); err != nil {
+			return nil, 0, err
+		}
+	}
+	if len(r.Allocations) == 0 {
+		r.Allocations = []PointAllocation{{Points: r.Points}}
+	}
+
+	now := time.Now()
+	balance, err := activeBalanceTx(ctx, tx, r.UserID, now)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	restored := 0
+	for _, allocation := range r.Allocations {
+		targetLot := allocation.LotID
+		restoredToOriginal := false
+
+		if allocation.LotID > 0 {
+			var (
+				status    string
+				expiresAt time.Time
+				remaining int
+			)
+			err := tx.QueryRowContext(ctx, `
+				SELECT status, expires_at, points_remaining
+				FROM point_lots WHERE id = ? FOR UPDATE`, allocation.LotID).Scan(
+				&status, &expiresAt, &remaining)
+			switch {
+			case err == nil && status != "expired" && expiresAt.After(now):
+				if _, err := tx.ExecContext(ctx, `
+					UPDATE point_lots SET points_remaining = ?, status = 'active' WHERE id = ?`,
+					remaining+allocation.Points, allocation.LotID); err != nil {
+					return nil, 0, err
+				}
+				restoredToOriginal = true
+			case err != nil && !errors.Is(err, sql.ErrNoRows):
+				return nil, 0, err
+			}
+		}
+
+		if !restoredToOriginal {
+			expiresAt := now.AddDate(0, PointValidityMonths, 0)
+			res, err := tx.ExecContext(ctx, `
+				INSERT INTO point_lots
+					(user_id, order_id, points_total, points_remaining, earned_at, expires_at, status, note)
+				VALUES (?, NULLIF(?, ''), ?, ?, ?, ?, 'active', ?)`,
+				r.UserID, r.OrderID, allocation.Points, allocation.Points, now, expiresAt,
+				fmt.Sprintf("Restorasi penukaran poin #%d", r.ID))
+			if err != nil {
+				return nil, 0, err
+			}
+			targetLot, err = res.LastInsertId()
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+
+		balance += allocation.Points
+		restored += allocation.Points
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO point_ledger
+				(user_id, lot_id, redemption_id, order_id, entry_type, points_delta, balance_after, note)
+			VALUES (?, ?, ?, NULLIF(?, ''), 'restore', ?, ?, ?)`,
+			r.UserID, targetLot, r.ID, r.OrderID, allocation.Points, balance, note); err != nil {
+			return nil, 0, err
+		}
+	}
+
+	combinedNote := strings.Trim(strings.Join([]string{existingNote.String, note}, " | "), " |")
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE point_redemptions SET status = 'restored', reversed_at = ?, note = ? WHERE id = ?`,
+		now, combinedNote, r.ID); err != nil {
+		return nil, 0, err
+	}
+	if err := syncLegacyPointsTx(ctx, tx, r.UserID, balance); err != nil {
+		return nil, 0, err
+	}
+
+	r.Status = "restored"
+	r.Note = combinedNote
+	r.ReversedAt = &now
+	return &r, restored, nil
+}
+
+// RestoreRedemptionsForOrder memulihkan seluruh penukaran aktif milik pesanan.
+func RestoreRedemptionsForOrder(orderID string) error {
+	rows, err := db.QueryContext(context.Background(), `
+		SELECT id FROM point_redemptions
+		WHERE order_id = ? AND status = 'active' ORDER BY id ASC`, orderID)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, id := range ids {
+		if _, _, err := RestoreRedemption(id, "Pembatalan pesanan "+orderID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ===== Siklus Status Pesanan =====
+
+// ApplyOrderCancellation menarik poin yang diberikan oleh pesanan dan
+// memulihkan poin yang sempat ditukarkan pada pesanan tersebut.
+func ApplyOrderCancellation(orderID string) error {
+	ctx := context.Background()
+
+	// Pulihkan poin yang sempat ditukar pada pesanan ini terlebih dahulu,
+	// agar saldo cukup ketika poin yang dihasilkan pesanan ditarik kembali.
+	if err := RestoreRedemptionsForOrder(orderID); err != nil {
+		return err
+	}
+
+	var userID string
+	err := db.QueryRowContext(ctx, `
+		SELECT user_id FROM point_ledger
+		WHERE order_id = ? AND entry_type IN ('earn', 'reapply')
+		ORDER BY id DESC LIMIT 1`, orderID).Scan(&userID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	if userID != "" {
+		if _, _, err := ReverseOrderEarning(orderID, userID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ApplyOrderReactivation mengembalikan kondisi poin saat pesanan yang
+// sebelumnya dibatalkan diaktifkan kembali.
+func ApplyOrderReactivation(orderID string) error {
+	ctx := context.Background()
+	var lastType string
+	err := db.QueryRowContext(ctx, `
+		SELECT entry_type FROM point_ledger
+		WHERE order_id = ? AND entry_type IN ('earn', 'reverse', 'reapply')
+		ORDER BY id DESC LIMIT 1`, orderID).Scan(&lastType)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+
+	if lastType == "reverse" {
+		var userID string
+		if err := db.QueryRowContext(ctx, `
+			SELECT user_id FROM point_ledger
+			WHERE order_id = ? AND entry_type = 'reverse'
+			ORDER BY id DESC LIMIT 1`, orderID).Scan(&userID); err == nil {
+			var lastAwardID int64
+			if err := db.QueryRowContext(ctx, `
+				SELECT COALESCE(MAX(id), 0) FROM point_ledger
+				WHERE order_id = ? AND entry_type IN ('earn', 'reapply')`, orderID).Scan(&lastAwardID); err != nil {
+				return err
+			}
+			var reversed int
+			if err := db.QueryRowContext(ctx, `
+				SELECT COALESCE(-SUM(points_delta), 0) FROM point_ledger
+				WHERE order_id = ? AND entry_type = 'reverse' AND id > ?`,
+				orderID, lastAwardID).Scan(&reversed); err != nil {
+				return err
+			}
+			if reversed > 0 {
+				if _, err := AddPoints(userID, reversed, orderID, "Pengaktifan ulang pesanan "+orderID); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	type restoredRedemption struct {
+		id     int64
+		userID string
+		points int
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, user_id, points FROM point_redemptions
+		WHERE order_id = ? AND status = 'restored' ORDER BY id ASC`, orderID)
+	if err != nil {
+		return err
+	}
+	var pending []restoredRedemption
+	for rows.Next() {
+		var r restoredRedemption
+		if err := rows.Scan(&r.id, &r.userID, &r.points); err != nil {
+			rows.Close()
+			return err
+		}
+		pending = append(pending, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, r := range pending {
+		if _, err := RedeemPoints(r.userID, r.points, orderID, "Pengaktifan ulang pesanan "+orderID); err != nil {
+			return err
+		}
+		if _, err := db.ExecContext(ctx, `
+			UPDATE point_redemptions SET status = 'reapplied' WHERE id = ?`, r.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ===== Detail Pengguna =====
+
+// UserPointSummary adalah ringkasan poin satu pengguna.
+type UserPointSummary struct {
+	UserID           string
+	Name             string
+	Username         string
+	Email            string
+	ActivePoints     int
+	RupiahValue      int
+	ExpiringSoon     int
+	ExpiringRupiah   int
+	NextExpiry       *time.Time
+	NextExpiryText   string
+	LifetimeEarned   int
+	LifetimeRedeemed int
+	LifetimeExpired  int
+	ActiveLots       int
+}
+
+// GetUserPointDetail mengambil ringkasan, daftar lot, dan ledger terbaru
+// untuk satu pengguna.
+func GetUserPointDetail(userID string) (*UserPointSummary, []PointLot, []PointLedgerEntry, error) {
+	if _, err := ActivePointBalance(userID); err != nil {
+		return nil, nil, nil, err
+	}
+	ctx := context.Background()
+	now := time.Now()
+
+	summary := &UserPointSummary{UserID: userID}
+	if err := db.QueryRowContext(ctx, `
+		SELECT name, username, COALESCE(email, '') FROM users WHERE id = ?`, userID).Scan(
+		&summary.Name, &summary.Username, &summary.Email); err != nil {
+		return nil, nil, nil, err
+	}
+
+	var nextExpiry sql.NullTime
+	if err := db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN status = 'active' AND expires_at > ? THEN points_remaining ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN status = 'active' AND expires_at > ? AND expires_at <= ? THEN points_remaining ELSE 0 END), 0),
+			MIN(CASE WHEN status = 'active' AND expires_at > ? THEN expires_at END),
+			COALESCE(SUM(points_total), 0),
+			COALESCE(SUM(CASE WHEN status = 'expired' THEN points_remaining ELSE 0 END), 0),
+			COUNT(CASE WHEN status = 'active' AND expires_at > ? THEN 1 END)
+		FROM point_lots WHERE user_id = ?`,
+		now, now, now.AddDate(0, 0, PointExpiryWarningDays), now, now, userID).Scan(
+		&summary.ActivePoints, &summary.ExpiringSoon, &nextExpiry,
+		&summary.LifetimeEarned, &summary.LifetimeExpired, &summary.ActiveLots); err != nil {
+		return nil, nil, nil, err
+	}
+	if nextExpiry.Valid {
+		summary.NextExpiry = &nextExpiry.Time
+		summary.NextExpiryText = nextExpiry.Time.Format("02 Jan 2006")
+	}
+
+	// Total poin masuk bersih (earn + reapply + reverse) dari ledger,
+	// sehingga poin yang sudah dibalik tidak dihitung dua kali.
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(points_delta), 0) FROM point_ledger
+		WHERE user_id = ? AND entry_type IN ('earn', 'reapply', 'reverse')`, userID).Scan(
+		&summary.LifetimeEarned); err != nil {
+		return nil, nil, nil, err
+	}
+
+	if err := db.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(points), 0) FROM point_redemptions
+		WHERE user_id = ? AND status IN ('active', 'restored', 'reapplied')`, userID).Scan(
+		&summary.LifetimeRedeemed); err != nil {
+		return nil, nil, nil, err
+	}
+	summary.RupiahValue = summary.ActivePoints * RupiahPerPoint
+	summary.ExpiringRupiah = summary.ExpiringSoon * RupiahPerPoint
+
+	lots, err := queryPointLots(ctx, `WHERE user_id = ? ORDER BY expires_at ASC, id ASC`, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	ledger, err := queryPointLedger(ctx, `WHERE user_id = ? ORDER BY id DESC LIMIT 50`, userID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return summary, lots, ledger, nil
+}
+
+// ===== Query Helper =====
+
+func queryPointLots(ctx context.Context, where string, args ...any) ([]PointLot, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, user_id, COALESCE(order_id, ''), points_total, points_remaining,
+		       earned_at, expires_at, status, note
+		FROM point_lots `+where, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	lots := make([]PointLot, 0)
+	for rows.Next() {
+		var l PointLot
+		if err := rows.Scan(&l.ID, &l.UserID, &l.OrderID, &l.PointsTotal, &l.PointsRemaining,
+			&l.EarnedAt, &l.ExpiresAt, &l.Status, &l.Note); err != nil {
+			return nil, err
+		}
+		l.DaysLeft = daysUntil(l.ExpiresAt)
+		l.ValueRupiah = l.PointsRemaining * RupiahPerPoint
+		l.StatusLabel = lotStatusLabel(l.Status)
+		lots = append(lots, l)
+	}
+	return lots, rows.Err()
+}
+
+func queryPointLedger(ctx context.Context, where string, args ...any) ([]PointLedgerEntry, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT g.id, g.user_id, COALESCE(u.name, ''), COALESCE(u.username, ''),
+		       g.lot_id, g.redemption_id, COALESCE(g.order_id, ''), g.entry_type,
+		       g.points_delta, g.balance_after, g.note, g.created_at
+		FROM point_ledger g
+		LEFT JOIN users u ON u.id = g.user_id
+		`+where, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	entries := make([]PointLedgerEntry, 0)
+	for rows.Next() {
+		var (
+			e            PointLedgerEntry
+			lotID        sql.NullInt64
+			redemptionID sql.NullInt64
+		)
+		if err := rows.Scan(&e.ID, &e.UserID, &e.UserName, &e.Username,
+			&lotID, &redemptionID, &e.OrderID, &e.EntryType,
+			&e.PointsDelta, &e.BalanceAfter, &e.Note, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		if lotID.Valid {
+			id := lotID.Int64
+			e.LotID = &id
+		}
+		if redemptionID.Valid {
+			id := redemptionID.Int64
+			e.RedemptionID = &id
+		}
+		e.TypeLabel = ledgerTypeLabel(e.EntryType)
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
+}
+
+// PointLotView adalah baris lot aktif pada laporan.
+type PointLotView struct {
+	PointLot
+	UserName string
+	Username string
+}
+
+// PointReport adalah data lengkap laporan poin aktif.
+type PointReport struct {
+	GeneratedAt       time.Time
+	RupiahPerPoint    int
+	ValidityMonths    int
+	ExpiryWarningDays int
+
+	TotalActivePoints int
+	TotalRupiahValue  int
+	TotalExpiringSoon int
+	TotalEarned       int
+	TotalRedeemed     int
+	TotalExpired      int
+
+	Users       []UserPointSummary
+	Lots        []PointLotView
+	Ledger      []PointLedgerEntry
+	Redemptions []PointRedemption
+}
+
+// BuildPointsReport menyusun laporan poin yang masih berlaku beserta
+// nilai rupiahnya, rincian per user, lot, penukaran, dan ledger terbaru.
+func BuildPointsReport() (*PointReport, error) {
+	ctx := context.Background()
+	now := time.Now()
+	report := &PointReport{
+		GeneratedAt:       now,
+		RupiahPerPoint:    RupiahPerPoint,
+		ValidityMonths:    PointValidityMonths,
+		ExpiryWarningDays: PointExpiryWarningDays,
+		Users:             make([]UserPointSummary, 0),
+		Lots:              make([]PointLotView, 0),
+		Ledger:            make([]PointLedgerEntry, 0),
+		Redemptions:       make([]PointRedemption, 0),
+	}
+
+	// Ringkasan per pengguna.
+	rows, err := db.QueryContext(ctx, `
+		SELECT u.id, u.name, u.username, COALESCE(u.email, ''),
+		       COALESCE(SUM(CASE WHEN l.status = 'active' AND l.expires_at > ? THEN l.points_remaining ELSE 0 END), 0),
+		       COALESCE(SUM(CASE WHEN l.status = 'active' AND l.expires_at > ? AND l.expires_at <= ? THEN l.points_remaining ELSE 0 END), 0),
+		       MIN(CASE WHEN l.status = 'active' AND l.expires_at > ? THEN l.expires_at END),
+		       COALESCE(SUM(l.points_total), 0),
+		       COALESCE(SUM(CASE WHEN l.status = 'expired' THEN l.points_remaining ELSE 0 END), 0),
+		       COUNT(CASE WHEN l.status = 'active' AND l.expires_at > ? THEN 1 END)
+		FROM users u
+		LEFT JOIN point_lots l ON l.user_id = u.id
+		GROUP BY u.id, u.name, u.username, u.email
+		ORDER BY u.name ASC`,
+		now, now, now.AddDate(0, 0, PointExpiryWarningDays), now, now)
+	if err != nil {
+		return nil, err
+	}
+
+	type summaryRow struct {
+		summary    UserPointSummary
+		nextExpiry sql.NullTime
+	}
+	var summaries []summaryRow
+	for rows.Next() {
+		var s summaryRow
+		if err := rows.Scan(&s.summary.UserID, &s.summary.Name, &s.summary.Username,
+			&s.summary.Email, &s.summary.ActivePoints, &s.summary.ExpiringSoon,
+			&s.nextExpiry, &s.summary.LifetimeEarned, &s.summary.LifetimeExpired,
+			&s.summary.ActiveLots); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if s.nextExpiry.Valid {
+			s.summary.NextExpiry = &s.nextExpiry.Time
+			s.summary.NextExpiryText = s.nextExpiry.Time.Format("02 Jan 2006")
+		}
+		summaries = append(summaries, s)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Total penukaran per pengguna.
+	redeemedByUser := map[string]int{}
+	redeemRows, err := db.QueryContext(ctx, `
+		SELECT user_id, COALESCE(SUM(points), 0)
+		FROM point_redemptions
+		WHERE status IN ('active', 'restored', 'reapplied')
+		GROUP BY user_id`)
+	if err != nil {
+		return nil, err
+	}
+	for redeemRows.Next() {
+		var userID string
+		var total int
+		if err := redeemRows.Scan(&userID, &total); err != nil {
+			redeemRows.Close()
+			return nil, err
+		}
+		redeemedByUser[userID] = total
+	}
+	redeemRows.Close()
+	if err := redeemRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Total poin masuk bersih per pengguna (earn + reapply + reverse).
+	earnedByUser := map[string]int{}
+	earnRows, err := db.QueryContext(ctx, `
+		SELECT user_id, COALESCE(SUM(points_delta), 0)
+		FROM point_ledger
+		WHERE entry_type IN ('earn', 'reapply', 'reverse')
+		GROUP BY user_id`)
+	if err != nil {
+		return nil, err
+	}
+	for earnRows.Next() {
+		var userID string
+		var total int
+		if err := earnRows.Scan(&userID, &total); err != nil {
+			earnRows.Close()
+			return nil, err
+		}
+		earnedByUser[userID] = total
+	}
+	earnRows.Close()
+	if err := earnRows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, s := range summaries {
+		if earned, ok := earnedByUser[s.summary.UserID]; ok {
+			s.summary.LifetimeEarned = earned
+		}
+		s.summary.LifetimeRedeemed = redeemedByUser[s.summary.UserID]
+		s.summary.RupiahValue = s.summary.ActivePoints * RupiahPerPoint
+		s.summary.ExpiringRupiah = s.summary.ExpiringSoon * RupiahPerPoint
+
+		report.TotalActivePoints += s.summary.ActivePoints
+		report.TotalExpiringSoon += s.summary.ExpiringSoon
+		report.TotalEarned += s.summary.LifetimeEarned
+		report.TotalRedeemed += s.summary.LifetimeRedeemed
+		report.TotalExpired += s.summary.LifetimeExpired
+		report.Users = append(report.Users, s.summary)
+	}
+	report.TotalRupiahValue = report.TotalActivePoints * RupiahPerPoint
+
+	// Daftar lot yang masih aktif, diurutkan dari yang paling cepat kedaluwarsa.
+	lotRows, err := db.QueryContext(ctx, `
+		SELECT l.id, l.user_id, COALESCE(l.order_id, ''), l.points_total, l.points_remaining,
+		       l.earned_at, l.expires_at, l.status, l.note,
+		       COALESCE(u.name, ''), COALESCE(u.username, '')
+		FROM point_lots l
+		LEFT JOIN users u ON u.id = l.user_id
+		WHERE l.status = 'active' AND l.expires_at > ?
+		ORDER BY l.expires_at ASC, l.id ASC
+		LIMIT 300`, now)
+	if err != nil {
+		return nil, err
+	}
+	for lotRows.Next() {
+		var v PointLotView
+		if err := lotRows.Scan(&v.ID, &v.UserID, &v.OrderID, &v.PointsTotal,
+			&v.PointsRemaining, &v.EarnedAt, &v.ExpiresAt, &v.Status, &v.Note,
+			&v.UserName, &v.Username); err != nil {
+			lotRows.Close()
+			return nil, err
+		}
+		v.DaysLeft = daysUntil(v.ExpiresAt)
+		v.ValueRupiah = v.PointsRemaining * RupiahPerPoint
+		v.StatusLabel = lotStatusLabel(v.Status)
+		report.Lots = append(report.Lots, v)
+	}
+	lotRows.Close()
+	if err := lotRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Riwayat penukaran terbaru.
+	redemptionRows, err := db.QueryContext(ctx, `
+		SELECT r.id, r.user_id, COALESCE(u.name, ''), COALESCE(u.username, ''),
+		       COALESCE(r.order_id, ''), r.points, r.rupiah_value, r.status,
+		       COALESCE(r.voucher_code, ''), r.note, r.created_at, r.reversed_at
+		FROM point_redemptions r
+		LEFT JOIN users u ON u.id = r.user_id
+		ORDER BY r.id DESC
+		LIMIT 100`)
+	if err != nil {
+		return nil, err
+	}
+	for redemptionRows.Next() {
+		var (
+			r          PointRedemption
+			reversedAt sql.NullTime
+		)
+		if err := redemptionRows.Scan(&r.ID, &r.UserID, &r.UserName, &r.Username,
+			&r.OrderID, &r.Points, &r.RupiahValue, &r.Status, &r.VoucherCode,
+			&r.Note, &r.CreatedAt, &reversedAt); err != nil {
+			redemptionRows.Close()
+			return nil, err
+		}
+		if reversedAt.Valid {
+			r.ReversedAt = &reversedAt.Time
+		}
+		report.Redemptions = append(report.Redemptions, r)
+	}
+	redemptionRows.Close()
+	if err := redemptionRows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Ledger terbaru.
+	ledger, err := queryPointLedger(ctx, `ORDER BY g.id DESC LIMIT 150`)
+	if err != nil {
+		return nil, err
+	}
+	report.Ledger = ledger
+
+	return report, nil
+}
+
+// PointReportPage adalah data untuk halaman laporan poin admin.
+type PointReportPage struct {
+	PageData
+	Report *PointReport
+}
+
+// pointsReportHandler menampilkan laporan poin aktif dan nilai rupiahnya.
+func pointsReportHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	report, err := BuildPointsReport()
+	if err != nil {
+		log.Printf("Gagal membangun laporan poin: %v", err)
+		http.Error(w, "Gagal memuat laporan poin.", http.StatusInternalServerError)
+		return
+	}
+	tplPointReport.ExecuteTemplate(w, "layout", PointReportPage{
+		PageData: PageData{
+			Title:     "Laporan Poin",
+			ActiveNav: "adminpoin",
+			Session:   getSession(r),
+			Flash:     getFlash(w, r),
+		},
+		Report: report,
+	})
+}
+
+// pointsAddHandler menambahkan poin secara manual (staff).
+func pointsAddHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	points, _ := strconv.Atoi(r.FormValue("points"))
+	orderID := strings.TrimSpace(r.FormValue("order_id"))
+	note := strings.TrimSpace(r.FormValue("note"))
+	if note == "" {
+		note = "Penambahan poin manual oleh staf"
+	}
+
+	u, _, err := getUserByUsername(username)
+	if err != nil {
+		addFlash(w, "Pengguna @"+username+" tidak ditemukan.")
+		http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+		return
+	}
+
+	lot, err := AddPoints(u.ID, points, orderID, note)
+	if err != nil {
+		addFlash(w, "Gagal menambah poin: "+err.Error())
+	} else {
+		addFlash(w, fmt.Sprintf("%d poin ditambahkan untuk @%s, berlaku sampai %s.",
+			lot.PointsTotal, u.Username, lot.ExpiresAt.Format("02 Jan 2006")))
+	}
+	http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+}
+
+// pointsRedeemHandler menukarkan poin atas nama pengguna (staff).
+func pointsRedeemHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	points, _ := strconv.Atoi(r.FormValue("points"))
+	orderID := strings.TrimSpace(r.FormValue("order_id"))
+	note := strings.TrimSpace(r.FormValue("note"))
+	if note == "" {
+		note = "Penukaran poin oleh staf"
+	}
+
+	u, _, err := getUserByUsername(username)
+	if err != nil {
+		addFlash(w, "Pengguna @"+username+" tidak ditemukan.")
+		http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+		return
+	}
+
+	redemption, err := RedeemPoints(u.ID, points, orderID, note)
+	if err != nil {
+		addFlash(w, "Gagal menukar poin: "+err.Error())
+	} else {
+		addFlash(w, fmt.Sprintf("Penukaran %d poin (senilai %s) berhasil. Voucher: %s.",
+			redemption.Points, formatRupiah(redemption.RupiahValue), redemption.VoucherCode))
+	}
+	http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+}
+
+// pointsReverseHandler menarik poin (pembalikan/deduction).
+// Bila order_id diisi dan points = 0, sistem menarik poin yang pernah
+// diberikan untuk pesanan tersebut.
+func pointsReverseHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimSpace(r.FormValue("username"))
+	points, _ := strconv.Atoi(r.FormValue("points"))
+	orderID := strings.TrimSpace(r.FormValue("order_id"))
+	note := strings.TrimSpace(r.FormValue("note"))
+	if note == "" {
+		note = "Pembalikan poin oleh staf"
+	}
+
+	u, _, err := getUserByUsername(username)
+	if err != nil {
+		addFlash(w, "Pengguna @"+username+" tidak ditemukan.")
+		http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+		return
+	}
+
+	var (
+		deducted  int
+		shortfall int
+	)
+	if orderID != "" && points == 0 {
+		deducted, shortfall, err = ReverseOrderEarning(orderID, u.ID)
+	} else {
+		deducted, shortfall, err = ReversePoints(u.ID, points, orderID, note)
+	}
+	if err != nil {
+		addFlash(w, "Gagal menarik poin: "+err.Error())
+	} else if shortfall > 0 {
+		addFlash(w, fmt.Sprintf("%d poin ditarik. Kekurangan %d poin tidak dapat ditarik karena saldo aktif tidak cukup.",
+			deducted, shortfall))
+	} else {
+		addFlash(w, fmt.Sprintf("%d poin berhasil ditarik dari @%s.", deducted, u.Username))
+	}
+	http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+}
+
+// pointsRestoreHandler memulihkan poin dari penukaran yang dibatalkan.
+func pointsRestoreHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	redemptionID, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("redemption_id")), 10, 64)
+	note := strings.TrimSpace(r.FormValue("note"))
+	if note == "" {
+		note = "Restorasi penukaran oleh staf"
+	}
+
+	_, restored, err := RestoreRedemption(redemptionID, note)
+	if err != nil {
+		addFlash(w, "Gagal memulihkan poin: "+err.Error())
+	} else {
+		addFlash(w, fmt.Sprintf("%d poin berhasil dipulihkan dari penukaran #%d.", restored, redemptionID))
+	}
+	http.Redirect(w, r, "/admin/poin", http.StatusSeeOther)
+}
+
+// userRedeemPointsHandler menukarkan poin dari halaman /poin milik member.
+func userRedeemPointsHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if sess == nil || sess.Role != "user" {
+		addFlash(w, "Silakan login sebagai member untuk menukar poin.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	points, _ := strconv.Atoi(r.FormValue("points"))
+	if points < MinRedeemPoints {
+		addFlash(w, fmt.Sprintf("Minimum penukaran adalah %d poin.", MinRedeemPoints))
+		http.Redirect(w, r, "/poin", http.StatusSeeOther)
+		return
+	}
+
+	redemption, err := RedeemPoints(sess.UserID, points, "", "Penukaran poin dari halaman poin")
+	if err != nil {
+		addFlash(w, "Gagal menukar poin: "+err.Error())
+	} else {
+		addFlash(w, fmt.Sprintf("Penukaran %d poin berhasil! Voucher %s senilai %s.",
+			redemption.Points, redemption.VoucherCode, formatRupiah(redemption.RupiahValue)))
+	}
+	http.Redirect(w, r, "/poin", http.StatusSeeOther)
+}
+
+// apiPointsBalanceHandler mengembalikan saldo poin aktif dalam bentuk JSON.
+// Staff dapat meminta ?username=..., member hanya bisa melihat saldonya sendiri.
+func apiPointsBalanceHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	username := strings.TrimSpace(r.URL.Query().Get("username"))
+
+	var userID string
+	switch {
+	case username != "" && isStaff(sess):
+		u, _, err := getUserByUsername(username)
+		if err != nil {
+			http.Error(w, "Pengguna tidak ditemukan.", http.StatusNotFound)
+			return
+		}
+		userID = u.ID
+	case sess != nil:
+		userID = sess.UserID
+	default:
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	summary, _, _, err := GetUserPointDetail(userID)
+	if err != nil {
+		log.Printf("Gagal mengambil saldo poin: %v", err)
+		http.Error(w, "Gagal mengambil saldo poin.", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"user_id":           summary.UserID,
+		"username":          summary.Username,
+		"active_points":     summary.ActivePoints,
+		"rupiah_value":      summary.RupiahValue,
+		"expiring_soon":     summary.ExpiringSoon,
+		"expiring_rupiah":   summary.ExpiringRupiah,
+		"next_expiry":       summary.NextExpiry,
+		"lifetime_earned":   summary.LifetimeEarned,
+		"lifetime_redeemed": summary.LifetimeRedeemed,
+		"lifetime_expired":  summary.LifetimeExpired,
+		"rupiah_per_point":  RupiahPerPoint,
+		"validity_months":   PointValidityMonths,
+	})
+}
+
+// formatRupiah memformat angka rupiah sederhana untuk pesan flash.
+func formatRupiah(value int) string {
+	negative := value < 0
+	if negative {
+		value = -value
+	}
+	digits := strconv.Itoa(value)
+	var parts []string
+	for len(digits) > 3 {
+		parts = append([]string{digits[len(digits)-3:]}, parts...)
+		digits = digits[:len(digits)-3]
+	}
+	parts = append([]string{digits}, parts...)
+	result := "Rp"
+	for i, part := range parts {
+		if i > 0 {
+			result += "."
+		}
+		result += part
+	}
+	if negative {
+		return "-" + result
+	}
+	return result
+}
+
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
