@@ -1,0 +1,183 @@
+{{define "content"}}
+<style>
+    .receipt-card {
+        max-width: 720px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        padding: 32px;
+        border-top: 5px solid var(--caramel);
+    }
+
+    .receipt-meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        background: var(--milk);
+        padding: 16px;
+        border-radius: 10px;
+        margin: 20px 0;
+        font-size: 13px;
+    }
+
+    .snapshot-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 18px;
+    }
+
+    .snapshot-table th {
+        text-align: left;
+        font-size: 12px;
+        color: var(--text-muted);
+        border-bottom: 1.5px solid #e6d7c8;
+        padding: 8px 4px;
+    }
+
+    .snapshot-table td {
+        padding: 10px 4px;
+        border-bottom: 1px dashed #eee2d6;
+        font-size: 14px;
+    }
+
+    .tot-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 5px 0;
+        font-size: 14px;
+    }
+
+    .tot-grand {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        margin-top: 8px;
+        border-top: 2px solid var(--dark-roast);
+        font-size: 19px;
+        font-weight: 700;
+    }
+
+    @media print {
+
+        header,
+        nav.sidebar,
+        footer,
+        .no-print {
+            display: none !important;
+        }
+
+        main {
+            padding: 0 !important;
+        }
+
+        .receipt-card {
+            box-shadow: none;
+            border: 1px solid #ccc;
+        }
+    }
+</style>
+
+<div class="no-print" style="max-width:720px; margin:0 auto 18px; display:flex; justify-content:space-between;">
+    <a href="/transaksi" class="btn btn-outline">← Kembali ke Daftar</a>
+    <div style="display:flex; gap:10px;">
+        <button type="button" class="btn btn-outline" onclick="window.print()">🖨️ Cetak Struk</button>
+        <a href="/kasir" class="btn btn-primary">+ Transaksi Baru</a>
+    </div>
+</div>
+
+<div class="receipt-card">
+    <div style="display:flex; justify-content:space-between; align-items:start;">
+        <div>
+            <h1 style="font-family:'Playfair Display', serif; font-size:24px; color:var(--dark-roast);">☕ Kopiku</h1>
+            <p style="color:var(--text-muted); font-size:13px;">{{.Trx.Branch}}</p>
+        </div>
+        <div style="text-align:right;">
+            <span class="badge badge-new">LUNAS ({{.Trx.Status}})</span>
+            <div style="font-weight:700; margin-top:6px;">{{.Trx.ID}}</div>
+            <small style="color:var(--text-muted);">{{formatTime .Trx.CreatedAt}}</small>
+        </div>
+    </div>
+
+    <div class="receipt-meta">
+        <div>
+            <strong>Pelanggan:</strong> {{.Trx.MemberName}}
+            {{if .Trx.MemberUsername}}(@{{.Trx.MemberUsername}}){{end}}<br>
+            <strong>Kasir:</strong> {{.Trx.CashierName}}
+        </div>
+        <div style="text-align:right;">
+            <strong>Metode Bayar:</strong> {{.Trx.PayMethod}}<br>
+            {{if gt .Trx.PointsEarned 0}}
+            <span style="color:#2e7d32; font-weight:600;">+{{.Trx.PointsEarned}} Poin Diperoleh</span>
+            {{end}}
+        </div>
+    </div>
+
+    <h3 style="font-size:14px; margin-bottom:8px; color:var(--dark-roast);">Rincian Item (Snapshot Harga)</h3>
+    <table class="snapshot-table">
+        <thead>
+            <tr>
+                <th>Produk</th>
+                <th>Harga Satuan</th>
+                <th>Qty</th>
+                <th style="text-align:right;">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Trx.Items}}
+            <tr>
+                <td>
+                    <strong>{{.ProductNameSnapshot}}</strong><br>
+                    <small style="color:var(--text-muted);">{{.CategorySnapshot}}</small>
+                </td>
+                <td>{{rupiah .UnitPriceSnapshot}}</td>
+                <td>{{.Qty}}</td>
+                <td style="text-align:right; font-weight:600;">{{rupiah .SubtotalSnapshot}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    {{if .Trx.Promos}}
+    <h3 style="font-size:14px; margin-bottom:8px; color:var(--dark-roast);">Promo / Voucher Digunakan (Snapshot)</h3>
+    <table class="snapshot-table">
+        <thead>
+            <tr>
+                <th>Kode</th>
+                <th>Nama Promo</th>
+                <th>Tipe</th>
+                <th style="text-align:right;">Potongan</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Trx.Promos}}
+            <tr>
+                <td><strong>{{.PromoCodeSnapshot}}</strong></td>
+                <td>{{.PromoTitleSnapshot}}</td>
+                <td>{{.DiscountTypeSnapshot}} ({{.DiscountValueSnapshot}})</td>
+                <td style="text-align:right; color:#2e7d32; font-weight:600;">-{{rupiah .DiscountAmountSnapshot}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{end}}
+
+    <div style="margin-top:16px;">
+        <div class="tot-row"><span>Subtotal</span><span>{{rupiah .Trx.Subtotal}}</span></div>
+        {{if gt .Trx.VoucherDiscount 0}}
+        <div class="tot-row" style="color:#2e7d32;"><span>Diskon Voucher</span><span>-{{rupiah
+                .Trx.VoucherDiscount}}</span></div>
+        {{end}}
+        {{if gt .Trx.PointsDiscount 0}}
+        <div class="tot-row" style="color:#2e7d32;"><span>Tukar {{.Trx.PointsUsed}} Poin</span><span>-{{rupiah
+                .Trx.PointsDiscount}}</span></div>
+        {{end}}
+        <div class="tot-grand"><span>Grand Total</span><span>{{rupiah .Trx.GrandTotal}}</span></div>
+        <div class="tot-row"><span>Dibayar ({{.Trx.PayMethod}})</span><span>{{rupiah .Trx.CashReceived}}</span></div>
+        {{if gt .Trx.ChangeAmount 0}}
+        <div class="tot-row" style="font-weight:600; color:var(--caramel);"><span>Kembalian</span><span>{{rupiah
+                .Trx.ChangeAmount}}</span></div>
+        {{end}}
+    </div>
+</div>
+{{end}}

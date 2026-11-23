@@ -458,9 +458,12 @@ func initDB() error {
 		is_active TINYINT(1) NOT NULL DEFAULT 1,
 		last_login_at DATETIME NULL,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`
 	if _, err := db.ExecContext(ctx, createTableSQL); err != nil {
 		return fmt.Errorf("gagal menyiapkan tabel users di database kopiku_db: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, "ALTER TABLE users CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"); err != nil {
+		return fmt.Errorf("gagal menyelaraskan collation tabel users: %w", err)
 	}
 
 	// Seed akun default bila tabel masih kosong
