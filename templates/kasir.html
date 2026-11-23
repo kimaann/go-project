@@ -1,0 +1,663 @@
+{{define "content"}}
+<style>
+    .pos-layout {
+        display: grid;
+        grid-template-columns: 1.45fr 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    .pos-toolbar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+    }
+
+    .pos-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1.5px solid #e2d5c8;
+        border-radius: 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        background: #fff;
+    }
+
+    .pos-input:focus {
+        outline: none;
+        border-color: var(--caramel);
+    }
+
+    .cat-pills {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .cat-pill {
+        padding: 6px 14px;
+        border-radius: 20px;
+        border: 1.5px solid var(--caramel);
+        background: transparent;
+        color: var(--dark-roast);
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .cat-pill.active {
+        background: var(--caramel);
+        color: #fff;
+    }
+
+    .product-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+    }
+
+    .product-tile {
+        background: #fff;
+        border: 1.5px solid #efe4d8;
+        border-radius: 12px;
+        padding: 14px;
+        cursor: pointer;
+        transition: all .15s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .product-tile:hover {
+        border-color: var(--caramel);
+        transform: translateY(-2px);
+        box-shadow: var(--shadow);
+    }
+
+    .product-icon {
+        font-size: 26px;
+        margin-bottom: 6px;
+    }
+
+    .product-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--dark-roast);
+    }
+
+    .product-cat {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .product-price {
+        font-weight: 700;
+        color: var(--caramel);
+        font-size: 14px;
+    }
+
+    .pos-panel {
+        background: #fff;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px;
+        position: sticky;
+        top: 88px;
+    }
+
+    .panel-block {
+        padding-bottom: 14px;
+        margin-bottom: 14px;
+        border-bottom: 1px solid #f0e6dc;
+    }
+
+    .panel-label {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+        display: block;
+    }
+
+    .member-dropdown {
+        background: #fff;
+        border: 1px solid #e2d5c8;
+        border-radius: 10px;
+        margin-top: 4px;
+        max-height: 170px;
+        overflow-y: auto;
+        box-shadow: var(--shadow);
+    }
+
+    .member-option {
+        padding: 9px 12px;
+        cursor: pointer;
+        font-size: 13px;
+        border-bottom: 1px solid #f7efe6;
+    }
+
+    .member-option:hover {
+        background: var(--milk);
+    }
+
+    .selected-member-box {
+        background: #fdf6ee;
+        border: 1px solid var(--caramel);
+        border-radius: 10px;
+        padding: 10px 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 13px;
+    }
+
+    .cart-list {
+        max-height: 220px;
+        overflow-y: auto;
+        margin-bottom: 12px;
+    }
+
+    .cart-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px dashed #eee2d6;
+        font-size: 13px;
+    }
+
+    .qty-controls {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .qty-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 1px solid #d8c6b4;
+        background: #fff;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 14px;
+        margin-bottom: 6px;
+    }
+
+    .summary-total {
+        display: flex;
+        justify-content: space-between;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--dark-roast);
+        padding-top: 8px;
+        border-top: 2px solid var(--cream);
+        margin-top: 8px;
+    }
+
+    .alert-box {
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        margin-bottom: 12px;
+        display: none;
+    }
+
+    .alert-error {
+        background: #fdecea;
+        color: #b71c1c;
+        border: 1px solid #f5c6cb;
+    }
+
+    .alert-ok {
+        background: #e8f5e9;
+        color: #1b5e20;
+        border: 1px solid #c3e6cb;
+    }
+
+    @media (max-width: 1024px) {
+        .pos-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .product-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div>
+        <h1 class="section-heading">🧾 Kasir Point of Sale</h1>
+        <p class="section-sub" style="margin-bottom:0;">Pilih produk, cari member, terapkan voucher atau poin dalam satu
+            transaksi atomik.</p>
+    </div>
+    <a href="/transaksi" class="btn btn-outline">📑 Lihat Daftar Transaksi</a>
+</div>
+
+<div class="pos-layout" id="posApp" data-rupiah-per-point="{{.RupiahPerPoint}}">
+    <!-- KIRI: Katalog Produk -->
+    <div>
+        <div class="pos-toolbar">
+            <input type="text" id="searchProduct" class="pos-input" placeholder="🔍 Cari nama menu..."
+                oninput="filterProducts()">
+        </div>
+
+        <div class="cat-pills">
+            <button type="button" class="cat-pill active" onclick="setCategory('ALL', this)">Semua</button>
+            <button type="button" class="cat-pill" onclick="setCategory('Kopi', this)">☕ Kopi</button>
+            <button type="button" class="cat-pill" onclick="setCategory('Non-Kopi', this)">🍵 Non-Kopi</button>
+            <button type="button" class="cat-pill" onclick="setCategory('Makanan', this)">🥐 Makanan</button>
+        </div>
+
+        <div class="product-grid" id="productGrid">
+            {{range .Products}}
+            <div class="product-tile" data-id="{{.ID}}" data-name="{{.Name}}" data-category="{{.Category}}"
+                data-price="{{.Price}}" onclick="addToCartEl(this)">
+                <div>
+                    <div class="product-icon">{{.Icon}}</div>
+                    <div class="product-name">{{.Name}}</div>
+                    <div class="product-cat">{{.Category}}</div>
+                </div>
+                <div class="product-price">{{rupiah .Price}}</div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- KANAN: Keranjang, Member, Voucher, Poin & Pembayaran -->
+    <div class="pos-panel">
+        <div id="posAlert" class="alert-box"></div>
+
+        <!-- Cabang -->
+        <div class="panel-block">
+            <label class="panel-label">📍 Cabang Operasional</label>
+            <select id="branchSelect" class="pos-input">
+                {{range .Branches}}
+                <option value="{{.Name}}">{{.Name}}</option>
+                {{end}}
+            </select>
+        </div>
+
+        <!-- Cari Member -->
+        <div class="panel-block">
+            <label class="panel-label">👤 Member / Pelanggan</label>
+            <div id="memberSearchWrapper">
+                <input type="text" id="memberSearchInput" class="pos-input"
+                    placeholder="Cari nama, username, atau no. HP member..." oninput="searchMember(this.value)">
+                <div id="memberDropdown" class="member-dropdown" style="display:none;"></div>
+                <input type="text" id="guestNameInput" class="pos-input" style="margin-top:8px;"
+                    placeholder="Atau nama pelanggan walk-in (opsional)">
+            </div>
+            <div id="selectedMemberBox" class="selected-member-box" style="display:none;">
+                <div>
+                    <strong id="selMemberName"></strong> (<span id="selMemberUser"></span>)<br>
+                    <small>Saldo aktif: <strong id="selMemberPts">0</strong> poin (senilai <span
+                            id="selMemberRupiah">Rp0</span>)</small>
+                </div>
+                <button type="button" class="qty-btn" onclick="clearMember()" title="Hapus member">✕</button>
+            </div>
+        </div>
+
+        <!-- Keranjang -->
+        <div class="panel-block">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <span class="panel-label" style="margin:0;">🛒 Keranjang Pesanan</span>
+                <button type="button" onclick="clearCart()"
+                    style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer;">Kosongkan</button>
+            </div>
+            <div class="cart-list" id="cartList">
+                <p style="color:var(--text-muted); font-size:13px;">Belum ada produk dipilih.</p>
+            </div>
+        </div>
+
+        <!-- Voucher -->
+        <div class="panel-block">
+            <label class="panel-label">🎟️ Kode Voucher</label>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="voucherInput" class="pos-input" placeholder="Contoh: NEWMENU30"
+                    style="text-transform:uppercase;">
+                <button type="button" class="btn btn-outline" style="padding:8px 14px;"
+                    onclick="applyVoucher()">Cek</button>
+            </div>
+            <small id="voucherStatus" style="display:block; margin-top:4px; color:var(--text-muted);"></small>
+        </div>
+
+        <!-- Tukar Poin -->
+        <div class="panel-block" id="pointsBlock" style="display:none;">
+            <label class="panel-label">⭐ Tukar Poin Member (1 poin = {{rupiah .RupiahPerPoint}})</label>
+            <div style="display:flex; gap:8px;">
+                <input type="number" id="pointsUsedInput" class="pos-input" min="0" value="0" oninput="recalculate()">
+                <button type="button" class="btn btn-outline" style="padding:8px 14px;"
+                    onclick="useMaxPoints()">Maks</button>
+            </div>
+        </div>
+
+        <!-- Ringkasan Harga -->
+        <div class="panel-block">
+            <div class="summary-row"><span>Subtotal</span><span id="sumSubtotal">Rp0</span></div>
+            <div class="summary-row" style="color:#2e7d32;"><span>Diskon Voucher</span><span id="sumVoucher">-Rp0</span>
+            </div>
+            <div class="summary-row" style="color:#2e7d32;"><span>Potongan Poin</span><span id="sumPoints">-Rp0</span>
+            </div>
+            <div class="summary-total"><span>Total Bayar</span><span id="sumGrandTotal">Rp0</span></div>
+        </div>
+
+        <!-- Pembayaran -->
+        <div class="panel-block" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
+            <label class="panel-label">💳 Metode Pembayaran</label>
+            <select id="payMethodSelect" class="pos-input" style="margin-bottom:10px;" onchange="toggleCashInput()">
+                <option value="Tunai">Tunai (Cash)</option>
+                <option value="QRIS">QRIS</option>
+                <option value="Debit / Kartu">Debit / Kartu</option>
+            </select>
+
+            <div id="cashBox" style="margin-bottom:12px;">
+                <label class="panel-label">Uang Diterima (Rp)</label>
+                <input type="number" id="cashReceivedInput" class="pos-input" min="0" value="0" oninput="recalculate()">
+                <div class="summary-row" style="margin-top:6px; font-weight:600;">
+                    <span>Kembalian</span>
+                    <span id="sumChange" style="color:var(--caramel);">Rp0</span>
+                </div>
+            </div>
+
+            <button type="button" id="btnCheckout" class="btn btn-primary"
+                style="width:100%; padding:13px; font-size:15px;" onclick="submitCheckout()">
+                ✅ Proses & Simpan Transaksi
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const RUPIAH_PER_POINT = parseInt(document.getElementById('posApp').dataset.rupiahPerPoint, 10) || 50;
+    let currentCategory = 'ALL';
+    let cart = []; // [{product_id, name, price, qty}]
+    let selectedMember = null; // {id, name, username, active_points}
+    let appliedVoucher = null; // {code, title, discount_type, discount_value}
+    let memberSearchTimer = null;
+
+    function formatRp(n) {
+        n = Math.max(0, Math.round(n || 0));
+        return 'Rp' + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function showAlert(msg, isError = true) {
+        const el = document.getElementById('posAlert');
+        el.textContent = msg;
+        el.className = 'alert-box ' + (isError ? 'alert-error' : 'alert-ok');
+        el.style.display = 'block';
+    }
+
+    function hideAlert() {
+        document.getElementById('posAlert').style.display = 'none';
+    }
+
+    function setCategory(cat, btn) {
+        currentCategory = cat;
+        document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        filterProducts();
+    }
+
+    function filterProducts() {
+        const q = document.getElementById('searchProduct').value.toLowerCase().trim();
+        document.querySelectorAll('.product-tile').forEach(tile => {
+            const name = tile.dataset.name.toLowerCase();
+            const cat = tile.dataset.category;
+            const matchCat = (currentCategory === 'ALL' || cat === currentCategory);
+            const matchName = name.includes(q);
+            tile.style.display = (matchCat && matchName) ? 'flex' : 'none';
+        });
+    }
+
+    function addToCartEl(el) {
+        const id = parseInt(el.dataset.id, 10);
+        const name = el.dataset.name;
+        const price = parseInt(el.dataset.price, 10);
+        addToCart(id, name, price);
+    }
+
+    function addToCart(id, name, price) {
+        hideAlert();
+        const existing = cart.find(c => c.product_id === id);
+        if (existing) {
+            existing.qty += 1;
+        } else {
+            cart.push({product_id: id, name, price, qty: 1});
+        }
+        renderCart();
+    }
+
+    function updateQty(id, delta) {
+        const idx = cart.findIndex(c => c.product_id === id);
+        if (idx === -1) return;
+        cart[idx].qty += delta;
+        if (cart[idx].qty <= 0) {
+            cart.splice(idx, 1);
+        }
+        renderCart();
+    }
+
+    function clearCart() {
+        cart = [];
+        renderCart();
+    }
+
+    function renderCart() {
+        const container = document.getElementById('cartList');
+        if (cart.length === 0) {
+            container.innerHTML = '<p style="color:var(--text-muted); font-size:13px;">Belum ada produk dipilih.</p>';
+            recalculate();
+            return;
+        }
+
+        container.innerHTML = cart.map(item => `
+        <div class="cart-row">
+            <div>
+                <div style="font-weight:600;">${item.name}</div>
+                <small style="color:var(--text-muted);">${formatRp(item.price)} × ${item.qty}</small>
+            </div>
+            <div class="qty-controls">
+                <button type="button" class="qty-btn" onclick="updateQty(${item.product_id}, -1)">-</button>
+                <span style="min-width:18px; text-align:center; font-weight:600;">${item.qty}</span>
+                <button type="button" class="qty-btn" onclick="updateQty(${item.product_id}, 1)">+</button>
+                <strong style="min-width:74px; text-align:right;">${formatRp(item.price * item.qty)}</strong>
+            </div>
+        </div>
+    `).join('');
+        recalculate();
+    }
+
+    function searchMember(q) {
+        clearTimeout(memberSearchTimer);
+        const dropdown = document.getElementById('memberDropdown');
+        if (q.trim().length < 2) {
+            dropdown.style.display = 'none';
+            return;
+        }
+        memberSearchTimer = setTimeout(async () => {
+            const res = await fetch('/api/kasir/members?q=' + encodeURIComponent(q.trim()));
+            if (!res.ok) return;
+            const members = await res.json();
+            if (members.length === 0) {
+                dropdown.innerHTML = '<div class="member-option" style="color:var(--text-muted);">Member tidak ditemukan</div>';
+            } else {
+                dropdown.innerHTML = members.map(m => `
+                <div class="member-option" onclick='selectMember(${JSON.stringify(m)})'>
+                    <strong>${m.name}</strong> (@${m.username}) • ${m.phone}<br>
+                    <small style="color:var(--caramel);">⭐ ${m.active_points} poin (${formatRp(m.rupiah_value)})</small>
+                </div>
+            `).join('');
+            }
+            dropdown.style.display = 'block';
+        }, 250);
+    }
+
+    function selectMember(m) {
+        selectedMember = m;
+        document.getElementById('memberDropdown').style.display = 'none';
+        document.getElementById('memberSearchWrapper').style.display = 'none';
+        document.getElementById('selectedMemberBox').style.display = 'flex';
+        document.getElementById('selMemberName').textContent = m.name;
+        document.getElementById('selMemberUser').textContent = '@' + m.username;
+        document.getElementById('selMemberPts').textContent = m.active_points;
+        document.getElementById('selMemberRupiah').textContent = formatRp(m.rupiah_value);
+        document.getElementById('pointsBlock').style.display = 'block';
+        document.getElementById('pointsUsedInput').value = 0;
+        recalculate();
+    }
+
+    function clearMember() {
+        selectedMember = null;
+        document.getElementById('selectedMemberBox').style.display = 'none';
+        document.getElementById('memberSearchWrapper').style.display = 'block';
+        document.getElementById('memberSearchInput').value = '';
+        document.getElementById('pointsBlock').style.display = 'none';
+        document.getElementById('pointsUsedInput').value = 0;
+        recalculate();
+    }
+
+    function getSubtotal() {
+        return cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+    }
+
+    async function applyVoucher() {
+        hideAlert();
+        const code = document.getElementById('voucherInput').value.trim().toUpperCase();
+        const statusEl = document.getElementById('voucherStatus');
+        if (!code) {
+            appliedVoucher = null;
+            statusEl.textContent = '';
+            recalculate();
+            return;
+        }
+
+        const subtotal = getSubtotal();
+        const res = await fetch('/api/kasir/voucher/check', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({code, subtotal})
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            appliedVoucher = null;
+            statusEl.style.color = '#c62828';
+            statusEl.textContent = '❌ ' + (data.message || 'Voucher tidak valid');
+            recalculate();
+            return;
+        }
+
+        appliedVoucher = data;
+        statusEl.style.color = '#2e7d32';
+        statusEl.textContent = `✅ ${data.title} aktif`;
+        recalculate();
+    }
+
+    function useMaxPoints() {
+        if (!selectedMember) return;
+        const subtotal = getSubtotal();
+        const vDisc = computeVoucherDiscount(subtotal);
+        const remaining = Math.max(0, subtotal - vDisc);
+        const maxByBill = Math.floor(remaining / RUPIAH_PER_POINT);
+        const maxUsable = Math.min(selectedMember.active_points, maxByBill);
+        document.getElementById('pointsUsedInput').value = maxUsable;
+        recalculate();
+    }
+
+    function computeVoucherDiscount(subtotal) {
+        if (!appliedVoucher || subtotal <= 0) return 0;
+        let d = appliedVoucher.discount_type === 'fixed'
+            ? appliedVoucher.discount_value
+            : Math.floor(subtotal * appliedVoucher.discount_value / 100);
+        return Math.min(subtotal, Math.max(0, d));
+    }
+
+    function recalculate() {
+        const subtotal = getSubtotal();
+        const vDisc = computeVoucherDiscount(subtotal);
+
+        let ptsUsed = 0;
+        if (selectedMember) {
+            ptsUsed = parseInt(document.getElementById('pointsUsedInput').value || '0', 10);
+            if (isNaN(ptsUsed) || ptsUsed < 0) ptsUsed = 0;
+            const maxByBill = Math.floor(Math.max(0, subtotal - vDisc) / RUPIAH_PER_POINT);
+            const maxAllowed = Math.min(selectedMember.active_points, maxByBill);
+            if (ptsUsed > maxAllowed) {
+                ptsUsed = maxAllowed;
+                document.getElementById('pointsUsedInput').value = ptsUsed;
+            }
+        }
+
+        const pDisc = ptsUsed * RUPIAH_PER_POINT;
+        const grandTotal = Math.max(0, subtotal - vDisc - pDisc);
+
+        document.getElementById('sumSubtotal').textContent = formatRp(subtotal);
+        document.getElementById('sumVoucher').textContent = '-' + formatRp(vDisc);
+        document.getElementById('sumPoints').textContent = '-' + formatRp(pDisc);
+        document.getElementById('sumGrandTotal').textContent = formatRp(grandTotal);
+
+        const cash = parseInt(document.getElementById('cashReceivedInput').value || '0', 10) || 0;
+        const change = Math.max(0, cash - grandTotal);
+        document.getElementById('sumChange').textContent = formatRp(change);
+    }
+
+    function toggleCashInput() {
+        const method = document.getElementById('payMethodSelect').value;
+        document.getElementById('cashBox').style.display = (method === 'Tunai') ? 'block' : 'none';
+    }
+
+    async function submitCheckout() {
+        hideAlert();
+        if (cart.length === 0) {
+            showAlert('Tambahkan minimal 1 produk ke keranjang terlebih dahulu.');
+            return;
+        }
+
+        const btn = document.getElementById('btnCheckout');
+        btn.disabled = true;
+        btn.textContent = 'Menyimpan transaksi...';
+
+        const payload = {
+            branch: document.getElementById('branchSelect').value,
+            member_id: selectedMember ? selectedMember.id : '',
+            guest_name: document.getElementById('guestNameInput').value.trim(),
+            voucher_code: appliedVoucher ? appliedVoucher.code : document.getElementById('voucherInput').value.trim(),
+            points_used: selectedMember ? (parseInt(document.getElementById('pointsUsedInput').value || '0', 10) || 0) : 0,
+            pay_method: document.getElementById('payMethodSelect').value,
+            cash_received: parseInt(document.getElementById('cashReceivedInput').value || '0', 10) || 0,
+            items: cart.map(c => ({product_id: c.product_id, qty: c.qty}))
+        };
+
+        try {
+            const res = await fetch('/api/kasir/checkout', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                showAlert(data.message || 'Transaksi gagal disimpan.');
+                btn.disabled = false;
+                btn.textContent = '✅ Proses & Simpan Transaksi';
+                return;
+            }
+            window.location.href = '/transaksi/' + encodeURIComponent(data.transaction_id);
+        } catch (err) {
+            showAlert('Terjadi gangguan koneksi ke server.');
+            btn.disabled = false;
+            btn.textContent = '✅ Proses & Simpan Transaksi';
+        }
+    }
+</script>
+{{end}}

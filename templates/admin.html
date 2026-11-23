@@ -1,11 +1,14 @@
 {{define "admin.html"}}
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}} - Kopiku Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
     <style>
         :root {
             --espresso: #1A0A00;
@@ -26,7 +29,11 @@
             --info-bg: #E3F2FD;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
@@ -38,7 +45,8 @@
         /* ======== SIDEBAR ======== */
         .sidebar {
             position: fixed;
-            top: 0; left: 0;
+            top: 0;
+            left: 0;
             width: var(--sidebar-w);
             height: 100vh;
             background: linear-gradient(180deg, var(--espresso) 0%, var(--dark-roast) 100%);
@@ -50,17 +58,20 @@
 
         .sidebar-brand {
             padding: 20px 24px;
-            border-bottom: 1px solid rgba(196,134,42,0.15);
+            border-bottom: 1px solid rgba(196, 134, 42, 0.15);
             display: flex;
             align-items: center;
             gap: 12px;
         }
 
         .sidebar-brand .logo-icon {
-            width: 40px; height: 40px;
+            width: 40px;
+            height: 40px;
             background: var(--caramel);
             border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 20px;
         }
 
@@ -88,7 +99,7 @@
         }
 
         .nav-label {
-            color: rgba(245,230,208,0.4);
+            color: rgba(245, 230, 208, 0.4);
             font-size: 0.65rem;
             font-weight: 600;
             text-transform: uppercase;
@@ -102,7 +113,7 @@
             gap: 12px;
             padding: 11px 16px;
             border-radius: 10px;
-            color: rgba(245,230,208,0.7);
+            color: rgba(245, 230, 208, 0.7);
             cursor: pointer;
             transition: all 0.2s;
             font-size: 0.9rem;
@@ -112,12 +123,12 @@
         }
 
         .nav-item:hover {
-            background: rgba(196,134,42,0.1);
+            background: rgba(196, 134, 42, 0.1);
             color: var(--cream);
         }
 
         .nav-item.active {
-            background: rgba(196,134,42,0.2);
+            background: rgba(196, 134, 42, 0.2);
             color: var(--caramel);
         }
 
@@ -141,14 +152,14 @@
 
         .sidebar-footer {
             padding: 16px;
-            border-top: 1px solid rgba(196,134,42,0.15);
+            border-top: 1px solid rgba(196, 134, 42, 0.15);
         }
 
         .sidebar-footer a {
             display: flex;
             align-items: center;
             gap: 10px;
-            color: rgba(245,230,208,0.5);
+            color: rgba(245, 230, 208, 0.5);
             text-decoration: none;
             font-size: 0.85rem;
             padding: 10px 12px;
@@ -158,7 +169,7 @@
 
         .sidebar-footer a:hover {
             color: #ef5350;
-            background: rgba(239,83,80,0.1);
+            background: rgba(239, 83, 80, 0.1);
         }
 
         /* ======== HEADER ======== */
@@ -169,7 +180,7 @@
             right: 0;
             height: var(--header-h);
             background: #fff;
-            border-bottom: 1px solid rgba(92,51,23,0.08);
+            border-bottom: 1px solid rgba(92, 51, 23, 0.08);
             z-index: 90;
             display: flex;
             align-items: center;
@@ -232,10 +243,13 @@
         }
 
         .user-avatar {
-            width: 36px; height: 36px;
+            width: 36px;
+            height: 36px;
             background: var(--cream);
             border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: 600;
             color: var(--medium);
             font-size: 0.85rem;
@@ -252,7 +266,7 @@
             font-size: 0.85rem;
             padding: 6px 14px;
             border-radius: 8px;
-            border: 1px solid rgba(92,51,23,0.15);
+            border: 1px solid rgba(92, 51, 23, 0.15);
             transition: all 0.2s;
         }
 
@@ -273,8 +287,13 @@
             padding: 28px 32px;
         }
 
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
 
         /* ======== CARDS ======== */
         .stats-grid {
@@ -288,14 +307,14 @@
             background: #fff;
             border-radius: 14px;
             padding: 22px 24px;
-            border: 1px solid rgba(92,51,23,0.06);
-            box-shadow: 0 1px 3px rgba(26,10,0,0.04);
+            border: 1px solid rgba(92, 51, 23, 0.06);
+            box-shadow: 0 1px 3px rgba(26, 10, 0, 0.04);
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .stat-card:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(26,10,0,0.08);
+            box-shadow: 0 4px 12px rgba(26, 10, 0, 0.08);
         }
 
         .stat-card .stat-header {
@@ -312,9 +331,12 @@
         }
 
         .stat-card .stat-icon {
-            width: 40px; height: 40px;
+            width: 40px;
+            height: 40px;
             border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 1.2rem;
         }
 
@@ -331,17 +353,28 @@
             margin-top: 4px;
         }
 
-        .icon-revenue { background: #FFF8E1; }
-        .icon-today { background: #E8F5E9; }
-        .icon-orders { background: #E3F2FD; }
-        .icon-pending { background: #FFF3E0; }
+        .icon-revenue {
+            background: #FFF8E1;
+        }
+
+        .icon-today {
+            background: #E8F5E9;
+        }
+
+        .icon-orders {
+            background: #E3F2FD;
+        }
+
+        .icon-pending {
+            background: #FFF3E0;
+        }
 
         /* ======== TABLE ======== */
         .panel {
             background: #fff;
             border-radius: 14px;
-            border: 1px solid rgba(92,51,23,0.06);
-            box-shadow: 0 1px 3px rgba(26,10,0,0.04);
+            border: 1px solid rgba(92, 51, 23, 0.06);
+            box-shadow: 0 1px 3px rgba(26, 10, 0, 0.04);
             overflow: hidden;
         }
 
@@ -350,7 +383,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 20px 24px;
-            border-bottom: 1px solid rgba(92,51,23,0.06);
+            border-bottom: 1px solid rgba(92, 51, 23, 0.06);
         }
 
         .panel-header h2 {
@@ -359,8 +392,13 @@
             font-weight: 600;
         }
 
-        .panel-body { padding: 0; }
-        .panel-body.padded { padding: 24px; }
+        .panel-body {
+            padding: 0;
+        }
+
+        .panel-body.padded {
+            padding: 24px;
+        }
 
         table {
             width: 100%;
@@ -376,18 +414,23 @@
             letter-spacing: 0.5px;
             color: var(--medium);
             background: var(--milk);
-            border-bottom: 1px solid rgba(92,51,23,0.06);
+            border-bottom: 1px solid rgba(92, 51, 23, 0.06);
         }
 
         tbody td {
             padding: 14px 16px;
             font-size: 0.88rem;
-            border-bottom: 1px solid rgba(92,51,23,0.04);
+            border-bottom: 1px solid rgba(92, 51, 23, 0.04);
             vertical-align: middle;
         }
 
-        tbody tr:hover { background: rgba(245,230,208,0.3); }
-        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover {
+            background: rgba(245, 230, 208, 0.3);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
 
         /* ======== BADGES ======== */
         .status-badge {
@@ -400,15 +443,39 @@
             font-weight: 600;
         }
 
-        .status-pending { background: var(--warning-bg); color: var(--warning); }
-        .status-paid { background: var(--info-bg); color: var(--info); }
-        .status-preparing { background: #F3E5F5; color: #7B1FA2; }
-        .status-ready { background: #E0F2F1; color: #00695C; }
-        .status-done { background: var(--success-bg); color: var(--success); }
-        .status-cancelled { background: var(--danger-bg); color: var(--danger); }
+        .status-pending {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+
+        .status-paid {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+
+        .status-preparing {
+            background: #F3E5F5;
+            color: #7B1FA2;
+        }
+
+        .status-ready {
+            background: #E0F2F1;
+            color: #00695C;
+        }
+
+        .status-done {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .status-cancelled {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
 
         .status-dot {
-            width: 7px; height: 7px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             background: currentColor;
         }
@@ -429,7 +496,7 @@
         .form-control {
             width: 100%;
             padding: 10px 14px;
-            border: 1.5px solid rgba(92,51,23,0.15);
+            border: 1.5px solid rgba(92, 51, 23, 0.15);
             border-radius: 10px;
             font-family: 'Inter', sans-serif;
             font-size: 0.9rem;
@@ -441,7 +508,7 @@
         .form-control:focus {
             outline: none;
             border-color: var(--caramel);
-            box-shadow: 0 0 0 3px rgba(196,134,42,0.12);
+            box-shadow: 0 0 0 3px rgba(196, 134, 42, 0.12);
         }
 
         select.form-control {
@@ -475,7 +542,7 @@
         .btn-primary:hover {
             background: #D4963A;
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(196,134,42,0.3);
+            box-shadow: 0 4px 12px rgba(196, 134, 42, 0.3);
         }
 
         .btn-sm {
@@ -486,21 +553,33 @@
 
         .btn-outline {
             background: transparent;
-            border: 1.5px solid rgba(92,51,23,0.2);
+            border: 1.5px solid rgba(92, 51, 23, 0.2);
             color: var(--medium);
         }
 
         .btn-outline:hover {
             border-color: var(--caramel);
             color: var(--caramel);
-            background: rgba(196,134,42,0.05);
+            background: rgba(196, 134, 42, 0.05);
         }
 
-        .btn-success { background: var(--success); color: #fff; }
-        .btn-success:hover { background: #388E3C; }
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+        }
 
-        .btn-danger { background: var(--danger); color: #fff; }
-        .btn-danger:hover { background: #D32F2F; }
+        .btn-success:hover {
+            background: #388E3C;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background: #D32F2F;
+        }
 
         .btn:disabled {
             opacity: 0.5;
@@ -523,7 +602,7 @@
 
         .menu-card {
             background: #fff;
-            border: 2px solid rgba(92,51,23,0.06);
+            border: 2px solid rgba(92, 51, 23, 0.06);
             border-radius: 12px;
             padding: 16px;
             cursor: pointer;
@@ -534,12 +613,12 @@
         .menu-card:hover {
             border-color: var(--caramel);
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(26,10,0,0.08);
+            box-shadow: 0 4px 12px rgba(26, 10, 0, 0.08);
         }
 
         .menu-card.selected {
             border-color: var(--caramel);
-            background: rgba(196,134,42,0.05);
+            background: rgba(196, 134, 42, 0.05);
         }
 
         .menu-card .mc-icon {
@@ -582,10 +661,12 @@
             align-items: center;
             justify-content: space-between;
             padding: 10px 0;
-            border-bottom: 1px solid rgba(92,51,23,0.06);
+            border-bottom: 1px solid rgba(92, 51, 23, 0.06);
         }
 
-        .cart-item:last-child { border-bottom: none; }
+        .cart-item:last-child {
+            border-bottom: none;
+        }
 
         .cart-item-info {
             flex: 1;
@@ -608,13 +689,16 @@
         }
 
         .qty-btn {
-            width: 28px; height: 28px;
-            border: 1.5px solid rgba(92,51,23,0.15);
+            width: 28px;
+            height: 28px;
+            border: 1.5px solid rgba(92, 51, 23, 0.15);
             border-radius: 8px;
             background: #fff;
             cursor: pointer;
             font-size: 1rem;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             color: var(--medium);
             transition: all 0.15s;
         }
@@ -633,7 +717,7 @@
 
         .cart-summary {
             padding: 16px;
-            border-top: 2px solid rgba(92,51,23,0.06);
+            border-top: 2px solid rgba(92, 51, 23, 0.06);
             background: var(--milk);
             border-radius: 0 0 14px 14px;
         }
@@ -651,7 +735,7 @@
             font-weight: 700;
             color: var(--espresso);
             padding-top: 8px;
-            border-top: 1px solid rgba(92,51,23,0.1);
+            border-top: 1px solid rgba(92, 51, 23, 0.1);
             margin-top: 4px;
         }
 
@@ -661,8 +745,15 @@
             color: var(--medium);
         }
 
-        .cart-empty .ce-icon { font-size: 2.5rem; margin-bottom: 8px; opacity: 0.5; }
-        .cart-empty p { font-size: 0.85rem; }
+        .cart-empty .ce-icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+
+        .cart-empty p {
+            font-size: 0.85rem;
+        }
 
         .category-filter {
             display: flex;
@@ -673,7 +764,7 @@
 
         .cat-btn {
             padding: 6px 16px;
-            border: 1.5px solid rgba(92,51,23,0.12);
+            border: 1.5px solid rgba(92, 51, 23, 0.12);
             border-radius: 20px;
             background: #fff;
             font-family: 'Inter', sans-serif;
@@ -684,7 +775,11 @@
             transition: all 0.2s;
         }
 
-        .cat-btn:hover { border-color: var(--caramel); color: var(--caramel); }
+        .cat-btn:hover {
+            border-color: var(--caramel);
+            color: var(--caramel);
+        }
+
         .cat-btn.active {
             background: var(--caramel);
             color: var(--espresso);
@@ -754,7 +849,7 @@
         /* ======== STATUS SELECT ======== */
         .status-select {
             padding: 5px 10px;
-            border: 1.5px solid rgba(92,51,23,0.15);
+            border: 1.5px solid rgba(92, 51, 23, 0.15);
             border-radius: 8px;
             font-size: 0.8rem;
             font-family: 'Inter', sans-serif;
@@ -778,10 +873,25 @@
             font-weight: 600;
         }
 
-        .tier-bronze { background: #EFEBE9; color: #5D4037; }
-        .tier-silver { background: #ECEFF1; color: #455A64; }
-        .tier-gold { background: #FFF8E1; color: #F57F17; }
-        .tier-platinum { background: #E8EAF6; color: #283593; }
+        .tier-bronze {
+            background: #EFEBE9;
+            color: #5D4037;
+        }
+
+        .tier-silver {
+            background: #ECEFF1;
+            color: #455A64;
+        }
+
+        .tier-gold {
+            background: #FFF8E1;
+            color: #F57F17;
+        }
+
+        .tier-platinum {
+            background: #E8EAF6;
+            color: #283593;
+        }
 
         /* ======== TOAST ======== */
         .toast-container {
@@ -798,7 +908,7 @@
             background: #fff;
             border-radius: 12px;
             padding: 14px 20px;
-            box-shadow: 0 8px 24px rgba(26,10,0,0.12);
+            box-shadow: 0 8px 24px rgba(26, 10, 0, 0.12);
             display: flex;
             align-items: center;
             gap: 10px;
@@ -809,18 +919,36 @@
             border-left: 4px solid var(--success);
         }
 
-        .toast.error { border-left-color: var(--danger); }
+        .toast.error {
+            border-left-color: var(--danger);
+        }
 
-        .toast-icon { font-size: 1.2rem; }
+        .toast-icon {
+            font-size: 1.2rem;
+        }
 
         @keyframes toastIn {
-            from { opacity: 0; transform: translateX(40px); }
-            to { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(40px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         @keyframes toastOut {
-            from { opacity: 1; transform: translateX(0); }
-            to { opacity: 0; transform: translateX(40px); }
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+
+            to {
+                opacity: 0;
+                transform: translateX(40px);
+            }
         }
 
         /* ======== OVERLAY ======== */
@@ -828,7 +956,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(26,10,0,0.5);
+            background: rgba(26, 10, 0, 0.5);
             z-index: 99;
         }
 
@@ -859,6 +987,7 @@
             .pos-layout {
                 grid-template-columns: 1fr;
             }
+
             .cart-panel {
                 position: static;
             }
@@ -868,34 +997,45 @@
             .sidebar {
                 transform: translateX(-100%);
             }
+
             .sidebar.open {
                 transform: translateX(0);
             }
+
             .sidebar-overlay.open {
                 display: block;
             }
+
             .header {
                 left: 0;
             }
+
             .main {
                 margin-left: 0;
             }
+
             .menu-toggle {
                 display: block;
             }
+
             .main-content {
                 padding: 20px 16px;
             }
+
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
+
             .header-right .user-name {
                 display: none;
             }
+
             table {
                 font-size: 0.82rem;
             }
-            thead th, tbody td {
+
+            thead th,
+            tbody td {
                 padding: 10px 10px;
             }
         }
@@ -904,779 +1044,800 @@
             .stats-grid {
                 grid-template-columns: 1fr;
             }
+
             .menu-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
         }
     </style>
 </head>
+
 <body>
 
-<!-- Sidebar Overlay (mobile) -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-<!-- Sidebar -->
-<aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-        <div class="logo-icon">☕</div>
-        <div>
-            <h1>Kopiku</h1>
-            <small>Admin Panel</small>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo-icon">☕</div>
+            <div>
+                <h1>Kopiku</h1>
+                <small>Admin Panel</small>
+            </div>
         </div>
-    </div>
-    <nav class="sidebar-nav">
-        <div class="nav-label">Menu Utama</div>
-        <a class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
-            <span class="nav-icon">📊</span> Dashboard
-        </a>
-        <a class="nav-item" data-tab="kasir" onclick="switchTab('kasir', this)">
-            <span class="nav-icon">🧾</span> Kasir (POS)
-        </a>
-        <a class="nav-item" data-tab="orders" onclick="switchTab('orders', this)">
-            <span class="nav-icon">📋</span> Semua Pesanan
-            {{if gt .PendingCount 0}}
-            <span class="badge-count">{{.PendingCount}}</span>
+        <nav class="sidebar-nav">
+            <div class="nav-label">Menu Utama</div>
+            <a class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+                <span class="nav-icon">📊</span> Dashboard
+            </a>
+            <a class="nav-item" data-tab="kasir" onclick="switchTab('kasir', this)">
+                <span class="nav-icon">🧾</span> Kasir (POS)
+            </a>
+            <a class="nav-item" data-tab="orders" onclick="switchTab('orders', this)">
+                <span class="nav-icon">📋</span> Semua Pesanan
+                {{if gt .PendingCount 0}}
+                <span class="badge-count">{{.PendingCount}}</span>
+                {{end}}
+            </a>
+            <div class="nav-label">Laporan</div>
+            <a class="nav-item" data-tab="promos" onclick="switchTab('promos', this)">
+                <span class="nav-icon">🎫</span> Penggunaan Promo
+            </a>
+            <a class="nav-item" href="/admin/poin">
+                <span class="nav-icon">📈</span> Laporan Poin
+            </a>
+            {{if eq .Session.Role "admin"}}
+            <div class="nav-label">Manajemen</div>
+            <a class="nav-item" data-tab="users" onclick="switchTab('users', this)">
+                <span class="nav-icon">👥</span> Data Pelanggan
+            </a>
             {{end}}
-        </a>
-        <div class="nav-label">Laporan</div>
-        <a class="nav-item" data-tab="promos" onclick="switchTab('promos', this)">
-            <span class="nav-icon">🎫</span> Penggunaan Promo
-        </a>
-        <a class="nav-item" href="/admin/poin">
-            <span class="nav-icon">📈</span> Laporan Poin
-        </a>
-        {{if eq .Session.Role "admin"}}
-        <div class="nav-label">Manajemen</div>
-        <a class="nav-item" data-tab="users" onclick="switchTab('users', this)">
-            <span class="nav-icon">👥</span> Data Pelanggan
-        </a>
-        {{end}}
-    </nav>
-    <div class="sidebar-footer">
-        <a href="/logout">
-            <span>🚪</span> Keluar
-        </a>
-    </div>
-</aside>
-
-<!-- Header -->
-<header class="header">
-    <div class="header-left">
-        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
-        <span class="header-title" id="headerTitle">Dashboard</span>
-    </div>
-    <div class="header-right">
-        <span class="role-badge {{.Session.Role}}">{{.Session.Role}}</span>
-        <div class="user-info">
-            <div class="user-avatar">{{slice .Session.Name 0 1}}</div>
-            <span class="user-name">{{.Session.Name}}</span>
+        </nav>
+        <div class="sidebar-footer">
+            <a href="/logout">
+                <span>🚪</span> Keluar
+            </a>
         </div>
-        <a href="/logout" class="logout-link">Logout</a>
-    </div>
-</header>
+    </aside>
 
-<!-- Main Content -->
-<main class="main">
-    <div class="main-content">
-
-        {{if .Flash}}
-        <div style="background:var(--success-bg);color:var(--success);padding:12px 20px;border-radius:10px;margin-bottom:20px;font-size:0.9rem;font-weight:500;border:1px solid rgba(46,125,50,0.15);">
-            ✅ {{.Flash}}
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <span class="header-title" id="headerTitle">Dashboard</span>
         </div>
-        {{end}}
-
-        <!-- ==================== DASHBOARD TAB ==================== -->
-        <div class="tab-panel active" id="tab-dashboard">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div>
-                            <div class="stat-label">Total Pendapatan</div>
-                        </div>
-                        <div class="stat-icon icon-revenue">💰</div>
-                    </div>
-                    <div class="stat-value">{{rupiah .TotalRev}}</div>
-                    <div class="stat-sub">Semua waktu</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div>
-                            <div class="stat-label">Pendapatan Hari Ini</div>
-                        </div>
-                        <div class="stat-icon icon-today">📈</div>
-                    </div>
-                    <div class="stat-value">{{rupiah .TodayRev}}</div>
-                    <div class="stat-sub">Hari ini</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div>
-                            <div class="stat-label">Total Pesanan</div>
-                        </div>
-                        <div class="stat-icon icon-orders">📦</div>
-                    </div>
-                    <div class="stat-value">{{.TotalOrders}}</div>
-                    <div class="stat-sub">{{.PaidCount}} telah dibayar</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-header">
-                        <div>
-                            <div class="stat-label">Menunggu Proses</div>
-                        </div>
-                        <div class="stat-icon icon-pending">⏳</div>
-                    </div>
-                    <div class="stat-value">{{.PendingCount}}</div>
-                    <div class="stat-sub">Perlu ditangani</div>
-                </div>
+        <div class="header-right">
+            <span class="role-badge {{.Session.Role}}">{{.Session.Role}}</span>
+            <div class="user-info">
+                <div class="user-avatar">{{slice .Session.Name 0 1}}</div>
+                <span class="user-name">{{.Session.Name}}</span>
             </div>
-
-            <!-- Recent Orders -->
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>Pesanan Terbaru</h2>
-                    <a class="btn btn-sm btn-outline" onclick="switchTab('orders', document.querySelector('[data-tab=orders]'))">Lihat Semua →</a>
-                </div>
-                <div class="panel-body">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Pelanggan</th>
-                                <th>Cabang</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Waktu</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{range .Orders}}
-                            <tr>
-                                <td style="font-family:monospace;font-size:0.8rem;">{{.ID}}</td>
-                                <td>
-                                    <div style="font-weight:600;">{{.UserName}}</div>
-                                    <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
-                                </td>
-                                <td>{{.Branch}}</td>
-                                <td style="font-weight:600;">{{rupiah .Total}}</td>
-                                <td>
-                                    <span class="status-badge status-{{.Status}}">
-                                        <span class="status-dot"></span>
-                                        {{if eq .Status "pending"}}Pending
-                                        {{else if eq .Status "paid"}}Dibayar
-                                        {{else if eq .Status "preparing"}}Diproses
-                                        {{else if eq .Status "ready"}}Siap
-                                        {{else if eq .Status "done"}}Selesai
-                                        {{else if eq .Status "cancelled"}}Dibatalkan
-                                        {{end}}
-                                    </span>
-                                </td>
-                                <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
-                            </tr>
-                            {{else}}
-                            <tr>
-                                <td colspan="6" style="text-align:center;padding:40px;color:var(--medium);">
-                                    Belum ada pesanan
-                                </td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            <a href="/logout" class="logout-link">Logout</a>
         </div>
+    </header>
 
-        <!-- ==================== KASIR (POS) TAB ==================== -->
-        <div class="tab-panel" id="tab-kasir">
-            <div class="pos-layout">
-                <!-- Menu Items -->
-                <div>
-                    <div class="panel" style="margin-bottom:20px;">
-                        <div class="panel-header">
-                            <h2>📋 Pilih Menu</h2>
-                        </div>
-                        <div class="panel-body padded">
-                            <div class="category-filter" id="categoryFilter">
-                                <button class="cat-btn active" onclick="filterCategory('all', this)">Semua</button>
-                            </div>
-                            <div class="menu-grid" id="menuGrid">
-                                {{range .MenuItems}}
-                                <div class="menu-card" data-name="{{.Name}}" data-price="{{.Price}}" data-category="{{.Category}}" onclick="addToCart(this)">
-                                    <div class="mc-icon">{{.Icon}}</div>
-                                    <div class="mc-name">{{.Name}}</div>
-                                    <div class="mc-cat">{{.Category}}</div>
-                                    <div class="mc-price">{{rupiah .Price}}</div>
-                                </div>
-                                {{end}}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <!-- Main Content -->
+    <main class="main">
+        <div class="main-content">
 
-                <!-- Cart / Order Panel -->
-                <div class="cart-panel">
-                    <div class="panel">
-                        <div class="panel-header">
-                            <h2>🛒 Keranjang</h2>
-                            <button class="btn btn-sm btn-outline" onclick="clearCart()">Kosongkan</button>
-                        </div>
-                        <div class="cart-items" id="cartItems">
-                            <div class="cart-empty" id="cartEmpty">
-                                <div class="ce-icon">🛒</div>
-                                <p>Keranjang kosong</p>
-                                <p style="font-size:0.75rem;margin-top:4px;">Klik menu untuk menambahkan</p>
-                            </div>
-                        </div>
-                        <div class="cart-summary">
-                            <div class="form-group">
-                                <label>Nama Pelanggan *</label>
-                                <input type="text" class="form-control" id="posCustomerName" placeholder="Nama pelanggan walk-in">
-                            </div>
-                            <div class="form-group">
-                                <label>Cabang *</label>
-                                <select class="form-control" id="posBranch">
-                                    <option value="">Pilih cabang</option>
-                                    {{range .Branches}}
-                                    <option value="{{.Name}}">{{.Name}} - {{.City}}</option>
-                                    {{end}}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Kode Promo (opsional)</label>
-                                <input type="text" class="form-control" id="posPromoCode" placeholder="Contoh: KOPI50">
-                            </div>
-                            <div class="form-group">
-                                <label>Metode Pembayaran *</label>
-                                <select class="form-control" id="posPayMethod">
-                                    <option value="">Pilih metode</option>
-                                    <option value="cash">💵 Cash</option>
-                                    <option value="qris">📱 QRIS</option>
-                                    <option value="debit">💳 Kartu Debit</option>
-                                    <option value="credit">💳 Kartu Kredit</option>
-                                </select>
-                            </div>
-                            <div class="cart-total-row grand">
-                                <span>Total</span>
-                                <span id="cartTotal">Rp0</span>
-                            </div>
-                            <button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:16px;padding:14px;" id="posSubmitBtn" onclick="submitPosOrder()" disabled>
-                                🧾 Buat Pesanan
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {{if .Flash}}
+            <div
+                style="background:var(--success-bg);color:var(--success);padding:12px 20px;border-radius:10px;margin-bottom:20px;font-size:0.9rem;font-weight:500;border:1px solid rgba(46,125,50,0.15);">
+                ✅ {{.Flash}}
             </div>
-        </div>
+            {{end}}
 
-        <!-- ==================== ALL ORDERS TAB ==================== -->
-        <div class="tab-panel" id="tab-orders">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>Semua Pesanan</h2>
-                    <div style="display:flex;gap:8px;align-items:center;">
-                        <select class="form-control" id="orderStatusFilter" onchange="filterOrders()" style="width:auto;padding:7px 32px 7px 12px;font-size:0.82rem;">
-                            <option value="all">Semua Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="paid">Dibayar</option>
-                            <option value="preparing">Diproses</option>
-                            <option value="ready">Siap</option>
-                            <option value="done">Selesai</option>
-                            <option value="cancelled">Dibatalkan</option>
-                        </select>
+            <!-- ==================== DASHBOARD TAB ==================== -->
+            <div class="tab-panel active" id="tab-dashboard">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-label">Total Pendapatan</div>
+                            </div>
+                            <div class="stat-icon icon-revenue">💰</div>
+                        </div>
+                        <div class="stat-value">{{rupiah .TotalRev}}</div>
+                        <div class="stat-sub">Semua waktu</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-label">Pendapatan Hari Ini</div>
+                            </div>
+                            <div class="stat-icon icon-today">📈</div>
+                        </div>
+                        <div class="stat-value">{{rupiah .TodayRev}}</div>
+                        <div class="stat-sub">Hari ini</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-label">Total Pesanan</div>
+                            </div>
+                            <div class="stat-icon icon-orders">📦</div>
+                        </div>
+                        <div class="stat-value">{{.TotalOrders}}</div>
+                        <div class="stat-sub">{{.PaidCount}} telah dibayar</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div>
+                                <div class="stat-label">Menunggu Proses</div>
+                            </div>
+                            <div class="stat-icon icon-pending">⏳</div>
+                        </div>
+                        <div class="stat-value">{{.PendingCount}}</div>
+                        <div class="stat-sub">Perlu ditangani</div>
                     </div>
                 </div>
-                <div class="panel-body">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width:30px;"></th>
-                                <th>ID Pesanan</th>
-                                <th>Pelanggan</th>
-                                <th>Cabang</th>
-                                <th>Promo</th>
-                                <th>Total</th>
-                                <th>Status</th>
-                                <th>Ubah Status</th>
-                                <th>Waktu</th>
-                            </tr>
-                        </thead>
-                        <tbody id="ordersTableBody">
-                            {{range .Orders}}
-                            <tr class="order-row" data-status="{{.Status}}" data-order-id="{{.ID}}">
-                                <td>
-                                    <button class="toggle-detail-btn" onclick="toggleOrderDetail('detail-{{.ID}}', this)" title="Lihat detail">▼</button>
-                                </td>
-                                <td style="font-family:monospace;font-size:0.8rem;font-weight:600;">{{.ID}}</td>
-                                <td>
-                                    <div style="font-weight:600;">{{.UserName}}</div>
-                                    <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
-                                </td>
-                                <td>{{.Branch}}</td>
-                                <td>
-                                    {{if .PromoCode}}
-                                    <span class="promo-code-badge">{{.PromoCode}}</span>
-                                    <div style="font-size:0.72rem;color:var(--success);margin-top:2px;">-{{rupiah .Discount}}</div>
-                                    {{else}}
-                                    <span style="color:var(--medium);font-size:0.82rem;">-</span>
-                                    {{end}}
-                                </td>
-                                <td style="font-weight:700;">{{rupiah .Total}}</td>
-                                <td>
-                                    <span class="status-badge status-{{.Status}}" id="badge-{{.ID}}">
-                                        <span class="status-dot"></span>
-                                        <span class="badge-text">
-                                        {{if eq .Status "pending"}}Pending
-                                        {{else if eq .Status "paid"}}Dibayar
-                                        {{else if eq .Status "preparing"}}Diproses
-                                        {{else if eq .Status "ready"}}Siap
-                                        {{else if eq .Status "done"}}Selesai
-                                        {{else if eq .Status "cancelled"}}Dibatalkan
-                                        {{end}}
-                                        </span>
-                                    </span>
-                                </td>
-                                <td>
-                                    <select class="status-select" data-order-id="{{.ID}}" onchange="updateOrderStatus(this)">
-                                        <option value="pending" {{if eq .Status "pending"}}selected{{end}}>Pending</option>
-                                        <option value="paid" {{if eq .Status "paid"}}selected{{end}}>Dibayar</option>
-                                        <option value="preparing" {{if eq .Status "preparing"}}selected{{end}}>Diproses</option>
-                                        <option value="ready" {{if eq .Status "ready"}}selected{{end}}>Siap</option>
-                                        <option value="done" {{if eq .Status "done"}}selected{{end}}>Selesai</option>
-                                        <option value="cancelled" {{if eq .Status "cancelled"}}selected{{end}}>Dibatalkan</option>
-                                    </select>
-                                </td>
-                                <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
-                            </tr>
-                            <!-- Order Detail Row -->
-                            <tr class="order-detail-row" id="detail-{{.ID}}">
-                                <td colspan="9" style="padding:0 16px 16px;">
-                                    <div class="order-detail-content">
-                                        <strong style="font-size:0.85rem;">Item Pesanan:</strong>
-                                        <ul class="order-items-list" style="margin-top:8px;">
-                                            {{range .Items}}
-                                            <li>
-                                                <span>{{.Item.Icon}} {{.Item.Name}} × {{.Qty}}</span>
-                                                <span style="font-weight:600;">{{rupiah .Subtotal}}</span>
-                                            </li>
+
+                <!-- Recent Orders -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Pesanan Terbaru</h2>
+                        <a class="btn btn-sm btn-outline"
+                            onclick="switchTab('orders', document.querySelector('[data-tab=orders]'))">Lihat Semua →</a>
+                    </div>
+                    <div class="panel-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Pelanggan</th>
+                                    <th>Cabang</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Waktu</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Orders}}
+                                <tr>
+                                    <td style="font-family:monospace;font-size:0.8rem;">{{.ID}}</td>
+                                    <td>
+                                        <div style="font-weight:600;">{{.UserName}}</div>
+                                        <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
+                                    </td>
+                                    <td>{{.Branch}}</td>
+                                    <td style="font-weight:600;">{{rupiah .Total}}</td>
+                                    <td>
+                                        <span class="status-badge status-{{.Status}}">
+                                            <span class="status-dot"></span>
+                                            {{if eq .Status "pending"}}Pending
+                                            {{else if eq .Status "paid"}}Dibayar
+                                            {{else if eq .Status "preparing"}}Diproses
+                                            {{else if eq .Status "ready"}}Siap
+                                            {{else if eq .Status "done"}}Selesai
+                                            {{else if eq .Status "cancelled"}}Dibatalkan
                                             {{end}}
-                                        </ul>
-                                        <div class="order-meta">
-                                            <div class="order-meta-item">
-                                                <strong>Subtotal</strong>
-                                                {{rupiah .Subtotal}}
-                                            </div>
-                                            <div class="order-meta-item">
-                                                <strong>Diskon</strong>
-                                                {{if gt .Discount 0}}-{{rupiah .Discount}}{{else}}-{{end}}
-                                            </div>
-                                            <div class="order-meta-item">
-                                                <strong>Pembayaran</strong>
-                                                {{.PayMethod}}
-                                            </div>
-                                            <div class="order-meta-item">
-                                                <strong>Promo</strong>
-                                                {{if .PromoCode}}{{.PromoTitle}} ({{.PromoCode}}){{else}}-{{end}}
+                                        </span>
+                                    </td>
+                                    <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
+                                </tr>
+                                {{else}}
+                                <tr>
+                                    <td colspan="6" style="text-align:center;padding:40px;color:var(--medium);">
+                                        Belum ada pesanan
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== KASIR (POS) TAB ==================== -->
+            <div class="tab-panel" id="tab-kasir">
+                <div class="pos-layout">
+                    <!-- Menu Items -->
+                    <div>
+                        <div class="panel" style="margin-bottom:20px;">
+                            <div class="panel-header">
+                                <h2>📋 Pilih Menu</h2>
+                            </div>
+                            <div class="panel-body padded">
+                                <div class="category-filter" id="categoryFilter">
+                                    <button class="cat-btn active" onclick="filterCategory('all', this)">Semua</button>
+                                </div>
+                                <div class="menu-grid" id="menuGrid">
+                                    {{range .MenuItems}}
+                                    <div class="menu-card" data-name="{{.Name}}" data-price="{{.Price}}"
+                                        data-category="{{.Category}}" onclick="addToCart(this)">
+                                        <div class="mc-icon">{{.Icon}}</div>
+                                        <div class="mc-name">{{.Name}}</div>
+                                        <div class="mc-cat">{{.Category}}</div>
+                                        <div class="mc-price">{{rupiah .Price}}</div>
+                                    </div>
+                                    {{end}}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cart / Order Panel -->
+                    <div class="cart-panel">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h2>🛒 Keranjang</h2>
+                                <button class="btn btn-sm btn-outline" onclick="clearCart()">Kosongkan</button>
+                            </div>
+                            <div class="cart-items" id="cartItems">
+                                <div class="cart-empty" id="cartEmpty">
+                                    <div class="ce-icon">🛒</div>
+                                    <p>Keranjang kosong</p>
+                                    <p style="font-size:0.75rem;margin-top:4px;">Klik menu untuk menambahkan</p>
+                                </div>
+                            </div>
+                            <div class="cart-summary">
+                                <div class="form-group">
+                                    <label>Nama Pelanggan *</label>
+                                    <input type="text" class="form-control" id="posCustomerName"
+                                        placeholder="Nama pelanggan walk-in">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cabang *</label>
+                                    <select class="form-control" id="posBranch">
+                                        <option value="">Pilih cabang</option>
+                                        {{range .Branches}}
+                                        <option value="{{.Name}}">{{.Name}} - {{.City}}</option>
+                                        {{end}}
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Kode Promo (opsional)</label>
+                                    <input type="text" class="form-control" id="posPromoCode"
+                                        placeholder="Contoh: KOPI50">
+                                </div>
+                                <div class="form-group">
+                                    <label>Metode Pembayaran *</label>
+                                    <select class="form-control" id="posPayMethod">
+                                        <option value="">Pilih metode</option>
+                                        <option value="cash">💵 Cash</option>
+                                        <option value="qris">📱 QRIS</option>
+                                        <option value="debit">💳 Kartu Debit</option>
+                                        <option value="credit">💳 Kartu Kredit</option>
+                                    </select>
+                                </div>
+                                <div class="cart-total-row grand">
+                                    <span>Total</span>
+                                    <span id="cartTotal">Rp0</span>
+                                </div>
+                                <button class="btn btn-primary"
+                                    style="width:100%;justify-content:center;margin-top:16px;padding:14px;"
+                                    id="posSubmitBtn" onclick="submitPosOrder()" disabled>
+                                    🧾 Buat Pesanan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== ALL ORDERS TAB ==================== -->
+            <div class="tab-panel" id="tab-orders">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>Semua Pesanan</h2>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <select class="form-control" id="orderStatusFilter" onchange="filterOrders()"
+                                style="width:auto;padding:7px 32px 7px 12px;font-size:0.82rem;">
+                                <option value="all">Semua Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="paid">Dibayar</option>
+                                <option value="preparing">Diproses</option>
+                                <option value="ready">Siap</option>
+                                <option value="done">Selesai</option>
+                                <option value="cancelled">Dibatalkan</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:30px;"></th>
+                                    <th>ID Pesanan</th>
+                                    <th>Pelanggan</th>
+                                    <th>Cabang</th>
+                                    <th>Promo</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Ubah Status</th>
+                                    <th>Waktu</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTableBody">
+                                {{range .Orders}}
+                                <tr class="order-row" data-status="{{.Status}}" data-order-id="{{.ID}}">
+                                    <td>
+                                        <button class="toggle-detail-btn"
+                                            onclick="toggleOrderDetail('detail-{{.ID}}', this)"
+                                            title="Lihat detail">▼</button>
+                                    </td>
+                                    <td style="font-family:monospace;font-size:0.8rem;font-weight:600;">{{.ID}}</td>
+                                    <td>
+                                        <div style="font-weight:600;">{{.UserName}}</div>
+                                        <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
+                                    </td>
+                                    <td>{{.Branch}}</td>
+                                    <td>
+                                        {{if .PromoCode}}
+                                        <span class="promo-code-badge">{{.PromoCode}}</span>
+                                        <div style="font-size:0.72rem;color:var(--success);margin-top:2px;">-{{rupiah
+                                            .Discount}}</div>
+                                        {{else}}
+                                        <span style="color:var(--medium);font-size:0.82rem;">-</span>
+                                        {{end}}
+                                    </td>
+                                    <td style="font-weight:700;">{{rupiah .Total}}</td>
+                                    <td>
+                                        <span class="status-badge status-{{.Status}}" id="badge-{{.ID}}">
+                                            <span class="status-dot"></span>
+                                            <span class="badge-text">
+                                                {{if eq .Status "pending"}}Pending
+                                                {{else if eq .Status "paid"}}Dibayar
+                                                {{else if eq .Status "preparing"}}Diproses
+                                                {{else if eq .Status "ready"}}Siap
+                                                {{else if eq .Status "done"}}Selesai
+                                                {{else if eq .Status "cancelled"}}Dibatalkan
+                                                {{end}}
+                                            </span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="status-select" data-order-id="{{.ID}}"
+                                            onchange="updateOrderStatus(this)">
+                                            <option value="pending" {{if eq .Status "pending" }}selected{{end}}>Pending
+                                            </option>
+                                            <option value="paid" {{if eq .Status "paid" }}selected{{end}}>Dibayar
+                                            </option>
+                                            <option value="preparing" {{if eq .Status "preparing" }}selected{{end}}>
+                                                Diproses</option>
+                                            <option value="ready" {{if eq .Status "ready" }}selected{{end}}>Siap
+                                            </option>
+                                            <option value="done" {{if eq .Status "done" }}selected{{end}}>Selesai
+                                            </option>
+                                            <option value="cancelled" {{if eq .Status "cancelled" }}selected{{end}}>
+                                                Dibatalkan</option>
+                                        </select>
+                                    </td>
+                                    <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
+                                </tr>
+                                <!-- Order Detail Row -->
+                                <tr class="order-detail-row" id="detail-{{.ID}}">
+                                    <td colspan="9" style="padding:0 16px 16px;">
+                                        <div class="order-detail-content">
+                                            <strong style="font-size:0.85rem;">Item Pesanan:</strong>
+                                            <ul class="order-items-list" style="margin-top:8px;">
+                                                {{range .Items}}
+                                                <li>
+                                                    <span>{{.Item.Icon}} {{.Item.Name}} × {{.Qty}}</span>
+                                                    <span style="font-weight:600;">{{rupiah .Subtotal}}</span>
+                                                </li>
+                                                {{end}}
+                                            </ul>
+                                            <div class="order-meta">
+                                                <div class="order-meta-item">
+                                                    <strong>Subtotal</strong>
+                                                    {{rupiah .Subtotal}}
+                                                </div>
+                                                <div class="order-meta-item">
+                                                    <strong>Diskon</strong>
+                                                    {{if gt .Discount 0}}-{{rupiah .Discount}}{{else}}-{{end}}
+                                                </div>
+                                                <div class="order-meta-item">
+                                                    <strong>Pembayaran</strong>
+                                                    {{.PayMethod}}
+                                                </div>
+                                                <div class="order-meta-item">
+                                                    <strong>Promo</strong>
+                                                    {{if .PromoCode}}{{.PromoTitle}} ({{.PromoCode}}){{else}}-{{end}}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            {{else}}
-                            <tr>
-                                <td colspan="9" style="text-align:center;padding:40px;color:var(--medium);">
-                                    Belum ada pesanan
-                                </td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ==================== PROMO USAGE TAB ==================== -->
-        <div class="tab-panel" id="tab-promos">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>📊 Penggunaan Promo</h2>
-                    <div style="font-size:0.85rem;color:var(--medium);">
-                        Total: {{len .PromoUsage}} penggunaan
+                                    </td>
+                                </tr>
+                                {{else}}
+                                <tr>
+                                    <td colspan="9" style="text-align:center;padding:40px;color:var(--medium);">
+                                        Belum ada pesanan
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="panel-body">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Kode Promo</th>
-                                <th>Nama Promo</th>
-                                <th>Digunakan Oleh</th>
-                                <th>ID Pesanan</th>
-                                <th>Diskon</th>
-                                <th>Tanggal</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{range .PromoUsage}}
-                            <tr>
-                                <td><span class="promo-code-badge">{{.Code}}</span></td>
-                                <td style="font-weight:500;">{{.Title}}</td>
-                                <td>
-                                    <div style="font-weight:600;">{{.UsedBy}}</div>
-                                    <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
-                                </td>
-                                <td style="font-family:monospace;font-size:0.8rem;">{{.OrderID}}</td>
-                                <td><span class="discount-badge">-{{rupiah .Discount}}</span></td>
-                                <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
-                            </tr>
-                            {{else}}
-                            <tr>
-                                <td colspan="6" style="text-align:center;padding:40px;color:var(--medium);">
-                                    Belum ada penggunaan promo
-                                </td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
-                </div>
             </div>
-        </div>
 
-        <!-- ==================== USERS TAB (Admin only) ==================== -->
-        {{if eq .Session.Role "admin"}}
-        <div class="tab-panel" id="tab-users">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2>👥 Data Pelanggan</h2>
-                    <div style="font-size:0.85rem;color:var(--medium);">
-                        Total: {{len .Users}} pengguna
+            <!-- ==================== PROMO USAGE TAB ==================== -->
+            <div class="tab-panel" id="tab-promos">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>📊 Penggunaan Promo</h2>
+                        <div style="font-size:0.85rem;color:var(--medium);">
+                            Total: {{len .PromoUsage}} penggunaan
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Kode Promo</th>
+                                    <th>Nama Promo</th>
+                                    <th>Digunakan Oleh</th>
+                                    <th>ID Pesanan</th>
+                                    <th>Diskon</th>
+                                    <th>Tanggal</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .PromoUsage}}
+                                <tr>
+                                    <td><span class="promo-code-badge">{{.Code}}</span></td>
+                                    <td style="font-weight:500;">{{.Title}}</td>
+                                    <td>
+                                        <div style="font-weight:600;">{{.UsedBy}}</div>
+                                        <div style="font-size:0.75rem;color:var(--medium);">@{{.Username}}</div>
+                                    </td>
+                                    <td style="font-family:monospace;font-size:0.8rem;">{{.OrderID}}</td>
+                                    <td><span class="discount-badge">-{{rupiah .Discount}}</span></td>
+                                    <td style="font-size:0.82rem;color:var(--medium);">{{formatTime .CreatedAt}}</td>
+                                </tr>
+                                {{else}}
+                                <tr>
+                                    <td colspan="6" style="text-align:center;padding:40px;color:var(--medium);">
+                                        Belum ada penggunaan promo
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="panel-body">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Nama</th>
-                                <th>Username</th>
-                                <th>Email</th>
-                                <th>Telepon</th>
-                                <th>Role</th>
-                                <th>Poin</th>
-                                <th>Tier</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {{range .Users}}
-                            <tr>
-                                <td style="font-weight:600;">{{.Name}}</td>
-                                <td style="color:var(--medium);">@{{.Username}}</td>
-                                <td>{{.Email}}</td>
-                                <td>{{.Phone}}</td>
-                                <td>
-                                    <span class="role-badge {{.Role}}" style="font-size:0.7rem;">{{.Role}}</span>
-                                </td>
-                                <td style="font-weight:600;">{{.Points}}</td>
-                                <td>
-                                    <span class="tier-badge">
-                                        {{tierIcon .Points}} {{tierName .Points}}
-                                    </span>
-                                </td>
-                            </tr>
-                            {{else}}
-                            <tr>
-                                <td colspan="7" style="text-align:center;padding:40px;color:var(--medium);">
-                                    Belum ada data pelanggan
-                                </td>
-                            </tr>
-                            {{end}}
-                        </tbody>
-                    </table>
+            </div>
+
+            <!-- ==================== USERS TAB (Admin only) ==================== -->
+            {{if eq .Session.Role "admin"}}
+            <div class="tab-panel" id="tab-users">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>👥 Data Pelanggan</h2>
+                        <div style="font-size:0.85rem;color:var(--medium);">
+                            Total: {{len .Users}} pengguna
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Nama</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Telepon</th>
+                                    <th>Role</th>
+                                    <th>Poin</th>
+                                    <th>Tier</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {{range .Users}}
+                                <tr>
+                                    <td style="font-weight:600;">{{.Name}}</td>
+                                    <td style="color:var(--medium);">@{{.Username}}</td>
+                                    <td>{{.Email}}</td>
+                                    <td>{{.Phone}}</td>
+                                    <td>
+                                        <span class="role-badge {{.Role}}" style="font-size:0.7rem;">{{.Role}}</span>
+                                    </td>
+                                    <td style="font-weight:600;">{{.Points}}</td>
+                                    <td>
+                                        <span class="tier-badge">
+                                            {{tierIcon .Points}} {{tierName .Points}}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {{else}}
+                                <tr>
+                                    <td colspan="7" style="text-align:center;padding:40px;color:var(--medium);">
+                                        Belum ada data pelanggan
+                                    </td>
+                                </tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+            {{end}}
+
         </div>
-        {{end}}
+    </main>
 
-    </div>
-</main>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
-<!-- Toast Container -->
-<div class="toast-container" id="toastContainer"></div>
+    <script>
+        // ==================== NAVIGATION ====================
+        const headerTitles = {
+            'dashboard': 'Dashboard',
+            'kasir': 'Kasir (POS)',
+            'orders': 'Semua Pesanan',
+            'promos': 'Penggunaan Promo',
+            'users': 'Data Pelanggan'
+        };
 
-<script>
-    // ==================== NAVIGATION ====================
-    const headerTitles = {
-        'dashboard': 'Dashboard',
-        'kasir': 'Kasir (POS)',
-        'orders': 'Semua Pesanan',
-        'promos': 'Penggunaan Promo',
-        'users': 'Data Pelanggan'
-    };
+        function switchTab(tabId, navEl) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
 
-    function switchTab(tabId, navEl) {
-        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const panel = document.getElementById('tab-' + tabId);
+            if (panel) panel.classList.add('active');
+            if (navEl) navEl.classList.add('active');
 
-        const panel = document.getElementById('tab-' + tabId);
-        if (panel) panel.classList.add('active');
-        if (navEl) navEl.classList.add('active');
+            document.getElementById('headerTitle').textContent = headerTitles[tabId] || 'Dashboard';
 
-        document.getElementById('headerTitle').textContent = headerTitles[tabId] || 'Dashboard';
-
-        // Close sidebar on mobile
-        if (window.innerWidth <= 768) {
-            document.getElementById('sidebar').classList.remove('open');
-            document.getElementById('sidebarOverlay').classList.remove('open');
-        }
-    }
-
-    function toggleSidebar() {
-        document.getElementById('sidebar').classList.toggle('open');
-        document.getElementById('sidebarOverlay').classList.toggle('open');
-    }
-
-    // ==================== TOAST ====================
-    function showToast(message, isError = false) {
-        const container = document.getElementById('toastContainer');
-        const toast = document.createElement('div');
-        toast.className = 'toast' + (isError ? ' error' : '');
-        toast.innerHTML = '<span class="toast-icon">' + (isError ? '❌' : '✅') + '</span><span>' + message + '</span>';
-        container.appendChild(toast);
-
-        setTimeout(() => {
-            toast.style.animation = 'toastOut 0.3s ease forwards';
-            setTimeout(() => toast.remove(), 300);
-        }, 3500);
-    }
-
-    // ==================== POS / KASIR ====================
-    const cart = [];
-
-    // Build category filter buttons from menu data
-    (function initCategories() {
-        const cards = document.querySelectorAll('.menu-card');
-        const cats = new Set();
-        cards.forEach(c => cats.add(c.dataset.category));
-        const filterEl = document.getElementById('categoryFilter');
-        cats.forEach(cat => {
-            const btn = document.createElement('button');
-            btn.className = 'cat-btn';
-            btn.textContent = cat;
-            btn.onclick = function() { filterCategory(cat, this); };
-            filterEl.appendChild(btn);
-        });
-    })();
-
-    function filterCategory(cat, btn) {
-        document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        document.querySelectorAll('.menu-card').forEach(card => {
-            if (cat === 'all' || card.dataset.category === cat) {
-                card.style.display = '';
-            } else {
-                card.style.display = 'none';
+            // Close sidebar on mobile
+            if (window.innerWidth <= 768) {
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('sidebarOverlay').classList.remove('open');
             }
-        });
-    }
-
-    function addToCart(cardEl) {
-        const name = cardEl.dataset.name;
-        const price = parseInt(cardEl.dataset.price);
-        const existing = cart.find(c => c.name === name);
-
-        if (existing) {
-            existing.qty++;
-        } else {
-            cart.push({ name, price, qty: 1 });
         }
 
-        // Visual feedback
-        cardEl.classList.add('selected');
-        setTimeout(() => cardEl.classList.remove('selected'), 300);
-
-        renderCart();
-    }
-
-    function removeFromCart(name) {
-        const idx = cart.findIndex(c => c.name === name);
-        if (idx !== -1) cart.splice(idx, 1);
-        renderCart();
-    }
-
-    function changeQty(name, delta) {
-        const item = cart.find(c => c.name === name);
-        if (!item) return;
-
-        item.qty += delta;
-        if (item.qty <= 0) {
-            removeFromCart(name);
-            return;
-        }
-        renderCart();
-    }
-
-    function clearCart() {
-        cart.length = 0;
-        renderCart();
-    }
-
-    function formatRupiah(num) {
-        return 'Rp' + num.toLocaleString('id-ID');
-    }
-
-    function renderCart() {
-        const container = document.getElementById('cartItems');
-        const emptyEl = document.getElementById('cartEmpty');
-        const totalEl = document.getElementById('cartTotal');
-        const submitBtn = document.getElementById('posSubmitBtn');
-
-        if (cart.length === 0) {
-            container.innerHTML = '<div class="cart-empty" id="cartEmpty"><div class="ce-icon">🛒</div><p>Keranjang kosong</p><p style="font-size:0.75rem;margin-top:4px;">Klik menu untuk menambahkan</p></div>';
-            totalEl.textContent = 'Rp0';
-            submitBtn.disabled = true;
-            return;
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('open');
         }
 
-        let total = 0;
-        let html = '';
-        cart.forEach(item => {
-            const sub = item.price * item.qty;
-            total += sub;
-            html += '<div class="cart-item">' +
-                '<div class="cart-item-info">' +
+        // ==================== TOAST ====================
+        function showToast(message, isError = false) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.innerHTML = '<span class="toast-icon">' + (isError ? '❌' : '✅') + '</span><span>' + message + '</span>';
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'toastOut 0.3s ease forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ==================== POS / KASIR ====================
+        const cart = [];
+
+        // Build category filter buttons from menu data
+        (function initCategories() {
+            const cards = document.querySelectorAll('.menu-card');
+            const cats = new Set();
+            cards.forEach(c => cats.add(c.dataset.category));
+            const filterEl = document.getElementById('categoryFilter');
+            cats.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'cat-btn';
+                btn.textContent = cat;
+                btn.onclick = function () {filterCategory(cat, this);};
+                filterEl.appendChild(btn);
+            });
+        })();
+
+        function filterCategory(cat, btn) {
+            document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            document.querySelectorAll('.menu-card').forEach(card => {
+                if (cat === 'all' || card.dataset.category === cat) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        function addToCart(cardEl) {
+            const name = cardEl.dataset.name;
+            const price = parseInt(cardEl.dataset.price);
+            const existing = cart.find(c => c.name === name);
+
+            if (existing) {
+                existing.qty++;
+            } else {
+                cart.push({name, price, qty: 1});
+            }
+
+            // Visual feedback
+            cardEl.classList.add('selected');
+            setTimeout(() => cardEl.classList.remove('selected'), 300);
+
+            renderCart();
+        }
+
+        function removeFromCart(name) {
+            const idx = cart.findIndex(c => c.name === name);
+            if (idx !== -1) cart.splice(idx, 1);
+            renderCart();
+        }
+
+        function changeQty(name, delta) {
+            const item = cart.find(c => c.name === name);
+            if (!item) return;
+
+            item.qty += delta;
+            if (item.qty <= 0) {
+                removeFromCart(name);
+                return;
+            }
+            renderCart();
+        }
+
+        function clearCart() {
+            cart.length = 0;
+            renderCart();
+        }
+
+        function formatRupiah(num) {
+            return 'Rp' + num.toLocaleString('id-ID');
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartItems');
+            const emptyEl = document.getElementById('cartEmpty');
+            const totalEl = document.getElementById('cartTotal');
+            const submitBtn = document.getElementById('posSubmitBtn');
+
+            if (cart.length === 0) {
+                container.innerHTML = '<div class="cart-empty" id="cartEmpty"><div class="ce-icon">🛒</div><p>Keranjang kosong</p><p style="font-size:0.75rem;margin-top:4px;">Klik menu untuk menambahkan</p></div>';
+                totalEl.textContent = 'Rp0';
+                submitBtn.disabled = true;
+                return;
+            }
+
+            let total = 0;
+            let html = '';
+            cart.forEach(item => {
+                const sub = item.price * item.qty;
+                total += sub;
+                html += '<div class="cart-item">' +
+                    '<div class="cart-item-info">' +
                     '<div class="cart-item-name">' + item.name + '</div>' +
                     '<div class="cart-item-price">' + formatRupiah(item.price) + ' × ' + item.qty + ' = ' + formatRupiah(sub) + '</div>' +
-                '</div>' +
-                '<div class="qty-control">' +
+                    '</div>' +
+                    '<div class="qty-control">' +
                     '<button class="qty-btn" onclick="changeQty(\'' + item.name.replace(/'/g, "\\'") + '\', -1)">−</button>' +
                     '<span class="qty-value">' + item.qty + '</span>' +
                     '<button class="qty-btn" onclick="changeQty(\'' + item.name.replace(/'/g, "\\'") + '\', 1)">+</button>' +
-                '</div>' +
-            '</div>';
-        });
-
-        container.innerHTML = html;
-        totalEl.textContent = formatRupiah(total);
-        submitBtn.disabled = false;
-    }
-
-    async function submitPosOrder() {
-        const customerName = document.getElementById('posCustomerName').value.trim();
-        const branch = document.getElementById('posBranch').value;
-        const promoCode = document.getElementById('posPromoCode').value.trim();
-        const payMethod = document.getElementById('posPayMethod').value;
-
-        if (!customerName) { showToast('Nama pelanggan harus diisi', true); return; }
-        if (!branch) { showToast('Pilih cabang terlebih dahulu', true); return; }
-        if (!payMethod) { showToast('Pilih metode pembayaran', true); return; }
-        if (cart.length === 0) { showToast('Keranjang masih kosong', true); return; }
-
-        const submitBtn = document.getElementById('posSubmitBtn');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '⏳ Memproses...';
-
-        const formData = new URLSearchParams();
-        formData.append('customer_name', customerName);
-        formData.append('branch', branch);
-        formData.append('pay_method', payMethod);
-        if (promoCode) formData.append('promo_code', promoCode);
-
-        cart.forEach(item => {
-            formData.append('items[]', item.name);
-            formData.append('qtys[]', item.qty.toString());
-        });
-
-        try {
-            const resp = await fetch('/admin/order/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData.toString()
+                    '</div>' +
+                    '</div>';
             });
-            const data = await resp.json();
 
-            if (resp.ok) {
-                showToast('Pesanan berhasil dibuat! ID: ' + (data.order_id || '-') + ' | Total: ' + formatRupiah(data.total || 0));
-                clearCart();
-                document.getElementById('posCustomerName').value = '';
-                document.getElementById('posPromoCode').value = '';
-                document.getElementById('posPayMethod').value = '';
-            } else {
-                showToast(data.error || 'Gagal membuat pesanan', true);
-            }
-        } catch (err) {
-            showToast('Terjadi kesalahan jaringan', true);
+            container.innerHTML = html;
+            totalEl.textContent = formatRupiah(total);
+            submitBtn.disabled = false;
         }
 
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '🧾 Buat Pesanan';
-    }
+        async function submitPosOrder() {
+            const customerName = document.getElementById('posCustomerName').value.trim();
+            const branch = document.getElementById('posBranch').value;
+            const promoCode = document.getElementById('posPromoCode').value.trim();
+            const payMethod = document.getElementById('posPayMethod').value;
 
-    // ==================== ORDER STATUS UPDATE ====================
-    async function updateOrderStatus(selectEl) {
-        const orderId = selectEl.dataset.orderId;
-        const newStatus = selectEl.value;
+            if (!customerName) {showToast('Nama pelanggan harus diisi', true); return;}
+            if (!branch) {showToast('Pilih cabang terlebih dahulu', true); return;}
+            if (!payMethod) {showToast('Pilih metode pembayaran', true); return;}
+            if (cart.length === 0) {showToast('Keranjang masih kosong', true); return;}
 
-        try {
-            const resp = await fetch('/admin/order/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ order_id: orderId, status: newStatus }).toString()
+            const submitBtn = document.getElementById('posSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Memproses...';
+
+            const formData = new URLSearchParams();
+            formData.append('customer_name', customerName);
+            formData.append('branch', branch);
+            formData.append('pay_method', payMethod);
+            if (promoCode) formData.append('promo_code', promoCode);
+
+            cart.forEach(item => {
+                formData.append('items[]', item.name);
+                formData.append('qtys[]', item.qty.toString());
             });
-            const data = await resp.json();
 
-            if (resp.ok) {
-                // Update the badge
-                const badge = document.getElementById('badge-' + orderId);
-                if (badge) {
-                    badge.className = 'status-badge status-' + newStatus;
-                    const labels = {
-                        pending: 'Pending', paid: 'Dibayar', preparing: 'Diproses',
-                        ready: 'Siap', done: 'Selesai', cancelled: 'Dibatalkan'
-                    };
-                    badge.querySelector('.badge-text').textContent = labels[newStatus] || newStatus;
+            try {
+                const resp = await fetch('/admin/order/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: formData.toString()
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    showToast('Pesanan berhasil dibuat! ID: ' + (data.order_id || '-') + ' | Total: ' + formatRupiah(data.total || 0));
+                    clearCart();
+                    document.getElementById('posCustomerName').value = '';
+                    document.getElementById('posPromoCode').value = '';
+                    document.getElementById('posPayMethod').value = '';
+                } else {
+                    showToast(data.error || 'Gagal membuat pesanan', true);
                 }
-
-                // Update data-status on row for filtering
-                const row = selectEl.closest('tr');
-                if (row) row.dataset.status = newStatus;
-
-                showToast('Status pesanan ' + orderId + ' diubah ke ' + newStatus);
-            } else {
-                showToast(data.error || 'Gagal mengubah status', true);
-                // Revert select - we'd need the old value; simplest: just reload
+            } catch (err) {
+                showToast('Terjadi kesalahan jaringan', true);
             }
-        } catch (err) {
-            showToast('Terjadi kesalahan jaringan', true);
+
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '🧾 Buat Pesanan';
         }
-    }
 
-    // ==================== ORDER FILTERING ====================
-    function filterOrders() {
-        const filter = document.getElementById('orderStatusFilter').value;
-        const rows = document.querySelectorAll('#ordersTableBody .order-row');
+        // ==================== ORDER STATUS UPDATE ====================
+        async function updateOrderStatus(selectEl) {
+            const orderId = selectEl.dataset.orderId;
+            const newStatus = selectEl.value;
 
-        rows.forEach(row => {
-            const detailRow = document.getElementById('detail-' + row.dataset.orderId);
-            if (filter === 'all' || row.dataset.status === filter) {
-                row.style.display = '';
-                // Keep detail row in sync if it's open
-                if (detailRow && detailRow.classList.contains('show')) {
-                    detailRow.style.display = '';
+            try {
+                const resp = await fetch('/admin/order/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({order_id: orderId, status: newStatus}).toString()
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    // Update the badge
+                    const badge = document.getElementById('badge-' + orderId);
+                    if (badge) {
+                        badge.className = 'status-badge status-' + newStatus;
+                        const labels = {
+                            pending: 'Pending', paid: 'Dibayar', preparing: 'Diproses',
+                            ready: 'Siap', done: 'Selesai', cancelled: 'Dibatalkan'
+                        };
+                        badge.querySelector('.badge-text').textContent = labels[newStatus] || newStatus;
+                    }
+
+                    // Update data-status on row for filtering
+                    const row = selectEl.closest('tr');
+                    if (row) row.dataset.status = newStatus;
+
+                    showToast('Status pesanan ' + orderId + ' diubah ke ' + newStatus);
+                } else {
+                    showToast(data.error || 'Gagal mengubah status', true);
+                    // Revert select - we'd need the old value; simplest: just reload
                 }
-            } else {
-                row.style.display = 'none';
-                if (detailRow) detailRow.style.display = 'none';
+            } catch (err) {
+                showToast('Terjadi kesalahan jaringan', true);
             }
-        });
-    }
+        }
 
-    // ==================== ORDER DETAIL TOGGLE ====================
-    function toggleOrderDetail(detailId, btn) {
-        const row = document.getElementById(detailId);
-        if (!row) return;
+        // ==================== ORDER FILTERING ====================
+        function filterOrders() {
+            const filter = document.getElementById('orderStatusFilter').value;
+            const rows = document.querySelectorAll('#ordersTableBody .order-row');
 
-        row.classList.toggle('show');
-        btn.classList.toggle('open');
-    }
-</script>
+            rows.forEach(row => {
+                const detailRow = document.getElementById('detail-' + row.dataset.orderId);
+                if (filter === 'all' || row.dataset.status === filter) {
+                    row.style.display = '';
+                    // Keep detail row in sync if it's open
+                    if (detailRow && detailRow.classList.contains('show')) {
+                        detailRow.style.display = '';
+                    }
+                } else {
+                    row.style.display = 'none';
+                    if (detailRow) detailRow.style.display = 'none';
+                }
+            });
+        }
+
+        // ==================== ORDER DETAIL TOGGLE ====================
+        function toggleOrderDetail(detailId, btn) {
+            const row = document.getElementById(detailId);
+            if (!row) return;
+
+            row.classList.toggle('show');
+            btn.classList.toggle('open');
+        }
+    </script>
 </body>
+
 </html>
 {{end}}

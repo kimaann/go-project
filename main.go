@@ -495,6 +495,9 @@ func initDB() error {
 	if err := initPointsSchema(pointCtx); err != nil {
 		return fmt.Errorf("gagal menyiapkan sistem poin: %w", err)
 	}
+	if err := initCashierSchema(pointCtx); err != nil {
+		return fmt.Errorf("gagal menyiapkan sistem kasir: %w", err)
+	}
 
 	return nil
 }
@@ -3003,6 +3006,14 @@ func main() {
 	mux.HandleFunc("/admin", adminHandler)
 	mux.HandleFunc("/admin/order/update", adminUpdateOrderHandler)
 	mux.HandleFunc("/admin/order/create", adminCreateOrderHandler)
+
+	// Kasir POS & Riwayat Transaksi
+	mux.HandleFunc("/kasir", kasirHandler)
+	mux.HandleFunc("/api/kasir/members", apiKasirSearchMemberHandler)
+	mux.HandleFunc("/api/kasir/voucher/check", apiKasirCheckVoucherHandler)
+	mux.HandleFunc("/api/kasir/checkout", apiKasirCheckoutHandler)
+	mux.HandleFunc("/transaksi", transaksiListHandler)
+	mux.HandleFunc("/transaksi/", transaksiDetailHandler)
 
 	// Poin: lot, penukaran FIFO, pembalikan, restorasi, dan laporan.
 	mux.HandleFunc("/admin/poin", pointsReportHandler)

@@ -1,0 +1,129 @@
+{{define "content"}}
+<style>
+    .filter-bar {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        align-items: center;
+    }
+
+    .filter-input {
+        padding: 10px 14px;
+        border: 1.5px solid #e2d5c8;
+        border-radius: 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        background: #fff;
+    }
+
+    .trx-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #fff;
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+
+    .trx-table th {
+        background: var(--dark-roast);
+        color: var(--cream);
+        text-align: left;
+        padding: 13px 16px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .trx-table td {
+        padding: 13px 16px;
+        border-bottom: 1px solid #f2e8de;
+        font-size: 14px;
+    }
+
+    .trx-table tr:hover td {
+        background: #fdf9f4;
+    }
+</style>
+
+<div
+    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+    <div>
+        <h1 class="section-heading">📑 Daftar Transaksi Kasir</h1>
+        <p class="section-sub" style="margin-bottom:0;">Riwayat transaksi tersimpan beserta snapshot harga, promo, dan
+            mutasi poin.</p>
+    </div>
+    <a href="/kasir" class="btn btn-primary">+ Transaksi Kasir Baru</a>
+</div>
+
+<div class="card"
+    style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+    <form method="GET" action="/transaksi" class="filter-bar" style="margin-bottom:0;">
+        <input type="text" name="q" value="{{.SearchQuery}}" class="filter-input"
+            placeholder="Cari No. Invoice / Member / Kasir...">
+        <input type="date" name="date" value="{{.FilterDate}}" class="filter-input">
+        <button type="submit" class="btn btn-primary">Filter</button>
+        {{if or .SearchQuery .FilterDate}}
+        <a href="/transaksi" class="btn btn-outline">Reset</a>
+        {{end}}
+    </form>
+    <div style="text-align:right;">
+        <small style="color:var(--text-muted); display:block;">Total Omzet (Tampil)</small>
+        <strong style="font-size:20px; color:var(--caramel);">{{rupiah .TotalOmzet}}</strong>
+    </div>
+</div>
+
+<table class="trx-table">
+    <thead>
+        <tr>
+            <th>No. Transaksi</th>
+            <th>Waktu</th>
+            <th>Pelanggan / Member</th>
+            <th>Kasir & Cabang</th>
+            <th>Diskon / Poin</th>
+            <th>Grand Total</th>
+            <th>Metode</th>
+            <th>Aksi</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{if .Transactions}}
+        {{range .Transactions}}
+        <tr>
+            <td><strong>{{.ID}}</strong></td>
+            <td>{{formatTime .CreatedAt}}</td>
+            <td>
+                {{.MemberName}}
+                {{if .MemberUsername}}<br><small style="color:var(--caramel);">@{{.MemberUsername}}</small>{{end}}
+            </td>
+            <td>
+                {{.CashierName}}<br>
+                <small style="color:var(--text-muted);">{{.Branch}}</small>
+            </td>
+            <td>
+                {{if gt .TotalDiscount 0}}
+                <span style="color:#2e7d32; font-weight:600;">-{{rupiah .TotalDiscount}}</span>
+                {{if gt .PointsUsed 0}}<br><small>({{.PointsUsed}} poin)</small>{{end}}
+                {{else}}
+                <span style="color:var(--text-muted);">-</span>
+                {{end}}
+            </td>
+            <td><strong>{{rupiah .GrandTotal}}</strong></td>
+            <td><span class="badge badge-new">{{.PayMethod}}</span></td>
+            <td>
+                <a href="/transaksi/{{.ID}}" class="btn btn-outline"
+                    style="padding:6px 12px; font-size:12px;">Detail</a>
+            </td>
+        </tr>
+        {{end}}
+        {{else}}
+        <tr>
+            <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+                Belum ada data transaksi yang sesuai filter.
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
