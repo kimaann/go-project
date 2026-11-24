@@ -3015,6 +3015,8 @@ func main() {
 	mux.HandleFunc("/api/kasir/members", apiKasirSearchMemberHandler)
 	mux.HandleFunc("/api/kasir/voucher/check", apiKasirCheckVoucherHandler)
 	mux.HandleFunc("/api/kasir/checkout", apiKasirCheckoutHandler)
+	mux.HandleFunc("/keranjang", keranjangHandler)
+	mux.HandleFunc("/api/kasir/cart/preview", apiKasirCartPreviewHandler)
 	mux.HandleFunc("/transaksi", transaksiListHandler)
 	mux.HandleFunc("/transaksi/", transaksiDetailHandler)
 
