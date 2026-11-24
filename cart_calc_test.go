@@ -1,8 +1,5 @@
 package main
 
-// Unit test mesin hitung keranjang (CalculateCart) dan pratinjau keranjang.
-// Semua tes murni (tanpa database): jalankan dengan `go test -run Cart ./...`.
-
 import (
 	"context"
 	"errors"
@@ -12,9 +9,6 @@ import (
 	"time"
 )
 
-// testCartConfig memakai angka rancangan (Rp1.000 per poin, 1 poin per Rp10.000, poin dari total
-// setelah promo) agar angka di test tetap mudah dihitung dan tidak ikut berubah bila konstanta
-// poin proyek diubah. Kesesuaian dengan konstanta proyek diuji terpisah.
 func testCartConfig() CartConfig {
 	return CartConfig{RupiahPerPoint: 1000, EarnPerRupiah: 10000, MaxRedeemPercent: 50, EarnBeforeRedeem: true}
 }
