@@ -452,7 +452,6 @@ func applyProductPromos(lines []*cartLine, active []CartPromo, cfg CartConfig) [
 func applySpendOrVoucher(res *CartResult, in CartInput, active []CartPromo, base int, hasMember bool, cfg CartConfig) {
 	res.VoucherCode = strings.ToUpper(strings.TrimSpace(in.VoucherCode))
 
-	// Kandidat potongan minimal belanja terbaik.
 	var minPromo *CartPromo
 	minDisc := 0
 	for i := range active {
@@ -465,7 +464,6 @@ func applySpendOrVoucher(res *CartResult, in CartInput, active []CartPromo, base
 		}
 	}
 
-	// Kandidat voucher.
 	var vPromo *CartPromo
 	vDisc := 0
 	if res.VoucherCode != "" {
