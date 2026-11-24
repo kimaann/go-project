@@ -1,16 +1,5 @@
 package main
 
-// cart_preview.go — Endpoint pratinjau keranjang untuk halaman POS (modul Aulia).
-//
-//	POST /api/kasir/cart/preview
-//
-// Server menghitung ulang seluruh rincian harga setiap keranjang berubah
-// (rancangan bagian 3): harga diambil dari DB, bukan dari browser.
-// Endpoint ini TIDAK menyimpan apa pun dan tidak mengonsumsi voucher maupun poin.
-//
-// Sumber data lintas modul dipasang lewat variabel fungsi di bawah, sehingga
-// modul Firman (promo), Alyssa (tingkat), dan Rifqi/Gagah (poin) dapat dicolok
-// tanpa mengubah file ini, dan handler dapat diuji tanpa database.
 
 import (
 	"context"
@@ -24,7 +13,6 @@ import (
 	"time"
 )
 
-// cartConfig adalah aturan hitung yang dipakai endpoint; bawaannya selaras dengan modul poin.
 var cartConfig = DefaultCartConfig()
 
 const (
@@ -37,9 +25,6 @@ const (
 var (
 	cartNow = time.Now
 
-	// Kontrak Firman: GetActivePromos(cabang, waktu) []Promo.
-	// Sementara kosong; ganti dengan fungsi milik Firman bila sudah jadi.
-	// Untuk mencoba/presentasi, jalankan server dengan CART_DEMO_PROMOS=1 agar promo contoh aktif.
 	cartActivePromos = func(ctx context.Context, branch string, at time.Time) ([]CartPromo, error) {
 		if cartDemoPromosEnabled() {
 			return demoCartPromos(), nil
@@ -47,25 +32,20 @@ var (
 		return nil, nil
 	}
 
-	// Kontrak Alyssa: GetTier(memberID, waktu) Tier.
-	// Sementara semua member Silver; ganti dengan GetTier milik Alyssa.
 	cartMemberTier = func(ctx context.Context, memberID string, at time.Time) (MemberTier, error) {
 		return TierSilver, nil
 	}
 
-	// Kontrak Rifqi/Gagah: GetActivePoints(memberID, waktu) int.
 	cartPointBalance = func(ctx context.Context, memberID string, at time.Time) (int, error) {
 		return ActivePointBalance(memberID)
 	}
 
-	// Sumber DB yang sudah ada di proyek ini.
 	cartLoadProducts = loadProductsByIDs
 	cartLoadVoucher  = loadVoucherAsPromo
 )
 
 func cartDemoPromosEnabled() bool { return os.Getenv("CART_DEMO_PROMOS") == "1" }
 
-// demoCartPromos adalah promo contoh (hanya untuk demo, aktif bila CART_DEMO_PROMOS=1).
 func demoCartPromos() []CartPromo {
 	return []CartPromo{
 		{ID: 101, Name: "Beli 2 Gratis 1 Kopi", Type: PromoBuy2Get1, Categories: []string{"Kopi"}, Active: true},
@@ -77,7 +57,6 @@ func demoCartPromos() []CartPromo {
 	}
 }
 
-// loadProductsByIDs mengambil produk aktif (harga resmi dari DB).
 func loadProductsByIDs(ctx context.Context, ids []int) (map[int]ProductDB, error) {
 	out := make(map[int]ProductDB, len(ids))
 	if len(ids) == 0 {
@@ -107,8 +86,6 @@ func loadProductsByIDs(ctx context.Context, ids []int) (map[int]ProductDB, error
 	return out, rows.Err()
 }
 
-// loadVoucherAsPromo membaca tabel vouchers yang sudah ada dan mengubahnya
-// menjadi CartPromo bertipe VOUCHER. Kembali nil bila kode tidak ditemukan.
 func loadVoucherAsPromo(ctx context.Context, code string, at time.Time) (*CartPromo, error) {
 	var v VoucherDB
 	var validUntil sql.NullTime
@@ -149,8 +126,6 @@ type cartPreviewRequest struct {
 	Items          []cartPreviewItem `json:"items"`
 }
 
-// buildCartPreview menyusun CartInput dari request lalu memanggil CalculateCart.
-// Mengembalikan status HTTP dan pesan bila gagal.
 func buildCartPreview(ctx context.Context, req cartPreviewRequest) (CartResult, int, string) {
 	now := cartNow()
 	if strings.TrimSpace(req.At) != "" {
