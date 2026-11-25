@@ -582,27 +582,6 @@ func initDB() error {
 	if err := initCashierSchema(pointCtx); err != nil {
 		return fmt.Errorf("gagal menyiapkan sistem kasir: %w", err)
 	}
-	if err := initMemberTierSchema(pointCtx); err != nil {
-		return fmt.Errorf("gagal menyiapkan sistem membership: %w", err)
-	}
-
-	// Tambah kolom membership ke tabel users bila belum ada (idempoten)
-	alterStmts := []string{
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_member TINYINT(1) NOT NULL DEFAULT 0`,
-		`ALTER TABLE users ADD COLUMN IF NOT EXISTS member_since DATETIME DEFAULT NULL`,
-	}
-	for _, stmt := range alterStmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			// MySQL < 8.0 tidak support IF NOT EXISTS pada ALTER TABLE ADD COLUMN,
-			// tapi error "Duplicate column" bisa diabaikan dengan aman.
-			if !strings.Contains(err.Error(), "Duplicate column") {
-				log.Printf("Peringatan ALTER TABLE membership: %v", err)
-			}
-		}
-	}
-
-	// Update seed default accounts user1 & user2 menjadi member jika belum
-	_, _ = db.ExecContext(ctx, "UPDATE users SET is_member = 1, member_since = COALESCE(member_since, NOW()) WHERE role = 'user' AND username IN ('user1', 'user2')")
 
 	return nil
 }
@@ -5126,3 +5105,4 @@ func main() {
 	log.Println("Server berjalan di http://localhost:8000")
 	log.Fatal(server.ListenAndServe())
 }
+
