@@ -314,13 +314,15 @@ func apiKasirSearchMemberHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type memberDTO struct {
-		ID           string `json:"id"`
-		Name         string `json:"name"`
-		Username     string `json:"username"`
-		Phone        string `json:"phone"`
-		Email        string `json:"email"`
-		ActivePoints int    `json:"active_points"`
-		RupiahValue  int    `json:"rupiah_value"`
+		ID            string     `json:"id"`
+		Name          string     `json:"name"`
+		Username      string     `json:"username"`
+		Phone         string     `json:"phone"`
+		Email         string     `json:"email"`
+		ActivePoints  int        `json:"active_points"`
+		RupiahValue   int        `json:"rupiah_value"`
+		Tier          MemberTier `json:"tier"`
+		TotalSpending int64      `json:"total_spending"`
 	}
 
 	results := make([]memberDTO, 0)
@@ -329,12 +331,22 @@ func apiKasirSearchMemberHandler(w http.ResponseWriter, r *http.Request) {
 		if err := rows.Scan(&m.ID, &m.Name, &m.Username, &m.Phone, &m.Email); err != nil {
 			continue
 		}
-		// Sinkronisasi kedaluwarsa & hitung saldo aktif real-time
+		// Sinkronisasi saldo poin aktif
 		pts, err := ActivePointBalance(m.ID)
 		if err == nil {
 			m.ActivePoints = pts
 			m.RupiahValue = pts * RupiahPerPoint
 		}
+
+		// Menghitung tingkat membership
+		tier, totalSpending, err := GetTier(m.ID, time.Now())
+		if err != nil {
+			http.Error(w, "Gagal menghitung tingkat membership", http.StatusInternalServerError)
+			return
+		}
+
+		m.Tier = tier
+		m.TotalSpending = totalSpending
 		results = append(results, m)
 	}
 

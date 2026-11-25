@@ -154,6 +154,11 @@
 <a href="/admin" class="nav-item {{if eq .ActiveNav " admin"}}active{{end}}">
     <span class="nav-icon">📊</span> Dashboard Admin
 </a>
+{{if eq .Session.Role "admin"}}
+<a href="/admin/members" class="nav-item {{if eq .ActiveNav "adminmembers"}}active{{end}}">
+    <span class="nav-icon">👥</span> Data Member
+</a>
+{{end}}
 <a href="/admin/poin" class="nav-item {{if eq .ActiveNav " adminpoin"}}active{{end}}">
     <span class="nav-icon">📈</span> Laporan Poin
 </a>
