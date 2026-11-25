@@ -1,0 +1,434 @@
+{{define "content"}}
+<style>
+    .members-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-bottom: 50px;
+    }
+
+    .head-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .head-section h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 30px;
+        color: var(--dark-roast);
+        margin-bottom: 4px;
+    }
+
+    .head-section p {
+        color: var(--text-muted);
+        font-size: 14px;
+    }
+
+    /* Flash Alert */
+    .flash-alert {
+        background: #E8F5E9;
+        color: #2E7D32;
+        border-left: 4px solid #2E7D32;
+        padding: 12px 18px;
+        border-radius: var(--radius);
+        margin-bottom: 24px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: var(--shadow);
+    }
+
+    /* Stats Overview */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+
+    .stat-card {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 20px 22px;
+        box-shadow: var(--shadow);
+        border-top: 3px solid var(--caramel);
+    }
+
+    .stat-card .label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .stat-card .val {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--dark-roast);
+    }
+
+    .stat-card .sub {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    /* Filter Toolbar */
+    .filter-panel {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 18px 22px;
+        box-shadow: var(--shadow);
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+    .search-form {
+        display: flex;
+        gap: 10px;
+        flex: 1;
+        max-width: 480px;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid #dcd2c7;
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+    }
+
+    .search-input:focus {
+        border-color: var(--caramel);
+    }
+
+    .btn-search {
+        background: var(--caramel);
+        color: #fff;
+        border: none;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .tier-pills {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .tier-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 7px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        text-decoration: none;
+        color: var(--dark-roast);
+        background: var(--milk);
+        border: 1px solid rgba(44, 26, 14, 0.15);
+        transition: all 0.15s;
+    }
+
+    .tier-pill:hover, .tier-pill.active {
+        background: var(--caramel);
+        color: #fff;
+        border-color: var(--caramel);
+    }
+
+    /* Table */
+    .table-panel {
+        background: var(--white);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+    }
+
+    .members-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+
+    .members-table th {
+        background: #F9F5F0;
+        padding: 14px 18px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--dark-roast);
+        border-bottom: 2px solid #EAE1D7;
+    }
+
+    .members-table td {
+        padding: 14px 18px;
+        border-bottom: 1px solid #F0E8DF;
+        font-size: 14px;
+        vertical-align: middle;
+    }
+
+    .members-table tr:hover {
+        background: #FDFAF6;
+    }
+
+    .member-profile {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .member-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--caramel);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 15px;
+    }
+
+    .member-name {
+        font-weight: 700;
+        color: var(--espresso);
+    }
+
+    .member-user {
+        font-size: 12px;
+        color: var(--medium);
+    }
+
+    .member-badge-active {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        background: #E8F5E9;
+        color: #2E7D32;
+    }
+
+    .member-badge-inactive {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #ECEFF1;
+        color: #546E7A;
+    }
+
+    .tier-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        background: rgba(196, 134, 42, 0.12);
+        color: var(--dark-roast);
+        border: 1px solid rgba(196, 134, 42, 0.25);
+    }
+
+    .btn-toggle {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-toggle-on {
+        background: var(--caramel);
+        color: #fff;
+    }
+
+    .btn-toggle-on:hover {
+        background: var(--dark-roast);
+    }
+
+    .btn-toggle-off {
+        background: #FFEBEE;
+        color: #C62828;
+    }
+
+    .btn-toggle-off:hover {
+        background: #FFCDD2;
+    }
+</style>
+
+<div class="members-page">
+
+    <div class="head-section">
+        <div>
+            <h1>👥 Daftar Member & Pelanggan</h1>
+            <p>Kelola data anggota aktif, saldo poin, dan tingkatan membership Kopiku.</p>
+        </div>
+        <div style="display:flex;gap:10px;">
+            <a href="/kasir" class="tier-pill" style="background:var(--caramel);color:#fff;border:none;padding:10px 16px;">🧾 Buka Kasir POS</a>
+            <a href="/admin/poin" class="tier-pill" style="padding:10px 16px;">📈 Laporan Poin</a>
+        </div>
+    </div>
+
+    {{if .Flash}}
+    <div class="flash-alert">
+        <span>📢</span> {{.Flash}}
+    </div>
+    {{end}}
+
+    <!-- Stat Overview -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="label">Total Pelanggan</div>
+            <div class="val">{{.Total}}</div>
+            <div class="sub">Terdaftar di database</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Total Poin Member</div>
+            <div class="val">{{.TotalPoints}} <small style="font-size:14px;font-weight:600;">pts</small></div>
+            <div class="sub">Senilai {{rupiah (mul .TotalPoints 50)}}</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Gold & Platinum</div>
+            <div class="val">{{add .GoldCount .PlatCount}} <small style="font-size:14px;font-weight:600;">member</small></div>
+            <div class="sub">🥇 {{.GoldCount}} Gold • 💎 {{.PlatCount}} Plat</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Silver & Bronze</div>
+            <div class="val">{{add .BronzeCount .SilverCount}} <small style="font-size:14px;font-weight:600;">member</small></div>
+            <div class="sub">🥈 {{.SilverCount}} Silver • 🥉 {{.BronzeCount}} Bronze</div>
+        </div>
+    </div>
+
+    <!-- Filter & Search Toolbar -->
+    <div class="filter-panel">
+        <form class="search-form" method="GET" action="/admin/members">
+            <input type="text" name="q" class="search-input" placeholder="🔍 Cari nama, username, email, no. HP..." value="{{.Query}}">
+            {{if .TierFilter}}<input type="hidden" name="tier" value="{{.TierFilter}}">{{end}}
+            <button type="submit" class="btn-search">Cari</button>
+            {{if or .Query .TierFilter}}
+            <a href="/admin/members" class="tier-pill" style="align-self:center;">Reset</a>
+            {{end}}
+        </form>
+
+        <div class="tier-pills">
+            <span style="font-size:12px;font-weight:700;color:var(--text-muted);align-self:center;margin-right:4px;">Filter Tier:</span>
+            <a href="/admin/members?{{if .Query}}q={{.Query}}&{{end}}" class="tier-pill {{if eq .TierFilter ""}}active{{end}}">Semua</a>
+            <a href="/admin/members?tier=Bronze{{if .Query}}&q={{.Query}}{{end}}" class="tier-pill {{if eq .TierFilter "Bronze"}}active{{end}}">🥉 Bronze</a>
+            <a href="/admin/members?tier=Silver{{if .Query}}&q={{.Query}}{{end}}" class="tier-pill {{if eq .TierFilter "Silver"}}active{{end}}">🥈 Silver</a>
+            <a href="/admin/members?tier=Gold{{if .Query}}&q={{.Query}}{{end}}" class="tier-pill {{if eq .TierFilter "Gold"}}active{{end}}">🥇 Gold</a>
+            <a href="/admin/members?tier=Platinum{{if .Query}}&q={{.Query}}{{end}}" class="tier-pill {{if eq .TierFilter "Platinum"}}active{{end}}">💎 Platinum</a>
+        </div>
+    </div>
+
+    <!-- Members Table -->
+    <div class="table-panel">
+        <table class="members-table">
+            <thead>
+                <tr>
+                    <th>Pelanggan</th>
+                    <th>Kontak</th>
+                    <th>Status Membership</th>
+                    <th>Bergabung Sejak</th>
+                    <th>Saldo Poin</th>
+                    <th>Tier</th>
+                    <th style="text-align:center;">Aksi Staff</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Members}}
+                <tr>
+                    <td>
+                        <div class="member-profile">
+                            <div class="member-avatar">{{slice .Name 0 1}}</div>
+                            <div>
+                                <div class="member-name">{{.Name}}</div>
+                                <div class="member-user">@{{.Username}}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div>{{.Email}}</div>
+                        <div style="font-size:12px;color:var(--text-muted);">{{.Phone}}</div>
+                    </td>
+                    <td>
+                        {{if .IsMember}}
+                        <span class="member-badge-active">
+                            ⭐ Member Aktif
+                        </span>
+                        {{else}}
+                        <span class="member-badge-inactive">
+                            Bukan Member
+                        </span>
+                        {{end}}
+                    </td>
+                    <td>
+                        {{if .MemberSince}}
+                        <div style="font-weight:600;">{{.MemberSince.Format "02 Jan 2006"}}</div>
+                        <div style="font-size:11px;color:var(--text-muted);">{{.MemberSince.Format "15:04"}} WIB</div>
+                        {{else}}
+                        <span style="color:var(--text-muted);font-size:12px;">-</span>
+                        {{end}}
+                    </td>
+                    <td>
+                        <strong style="color:var(--dark-roast);font-size:15px;">{{.Points}}</strong>
+                        <span style="font-size:11px;color:var(--text-muted);">pts</span>
+                    </td>
+                    <td>
+                        <span class="tier-badge">
+                            {{tierIcon .Points}} {{tierName .Points}}
+                        </span>
+                    </td>
+                    <td style="text-align:center;">
+                        <form method="POST" action="/admin/members/toggle" style="display:inline;">
+                            <input type="hidden" name="user_id" value="{{.ID}}">
+                            {{if .IsMember}}
+                            <button type="submit" class="btn-toggle btn-toggle-off" title="Nonaktifkan membership" onclick="return confirm('Nonaktifkan membership untuk @{{.Username}}?')">
+                                Nonaktifkan
+                            </button>
+                            {{else}}
+                            <button type="submit" class="btn-toggle btn-toggle-on" title="Aktifkan membership">
+                                + Aktifkan Member
+                            </button>
+                            {{end}}
+                        </form>
+                    </td>
+                </tr>
+                {{else}}
+                <tr>
+                    <td colspan="7" style="text-align:center;padding:40px;color:var(--text-muted);">
+                        Tidak ada data member yang sesuai dengan pencarian atau filter.
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{{end}}

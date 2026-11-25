@@ -1518,6 +1518,7 @@
                                     <th>Username</th>
                                     <th>Email</th>
                                     <th>Telepon</th>
+                                    <th>Status Member</th>
                                     <th>Role</th>
                                     <th>Poin</th>
                                     <th>Tier</th>
@@ -1531,6 +1532,17 @@
                                     <td>{{.Email}}</td>
                                     <td>{{.Phone}}</td>
                                     <td>
+                                        {{if .IsMember}}
+                                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;background:#E8F5E9;color:#2E7D32;">
+                                            ⭐ Member
+                                        </span>
+                                        {{else}}
+                                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;background:#ECEFF1;color:#546E7A;">
+                                            Bukan Member
+                                        </span>
+                                        {{end}}
+                                    </td>
+                                    <td>
                                         <span class="role-badge {{.Role}}" style="font-size:0.7rem;">{{.Role}}</span>
                                     </td>
                                     <td style="font-weight:600;">{{.Points}}</td>
@@ -1542,7 +1554,7 @@
                                 </tr>
                                 {{else}}
                                 <tr>
-                                    <td colspan="7" style="text-align:center;padding:40px;color:var(--medium);">
+                                    <td colspan="8" style="text-align:center;padding:40px;color:var(--medium);">
                                         Belum ada data pelanggan
                                     </td>
                                 </tr>

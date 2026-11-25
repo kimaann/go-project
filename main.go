@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/mail"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -69,6 +70,8 @@ type User struct {
 	Role         string
 	Points       int
 	IsActive     bool
+	IsMember     bool
+	MemberSince  *time.Time
 }
 
 type CartItem struct {
@@ -196,6 +199,31 @@ type OrderHistoryPage struct {
 
 type RegisterData struct {
 	Flash string
+}
+
+type MemberPage struct {
+	PageData
+	User        *User
+	IsMember    bool
+	MemberSince *time.Time
+	MemberID    string
+	Points      int
+	TierName    string
+	TierIcon    string
+	Lots        []PointLot
+}
+
+type MembersListPage struct {
+	PageData
+	Members     []User
+	Total       int
+	TotalPoints int
+	BronzeCount int
+	SilverCount int
+	GoldCount   int
+	PlatCount   int
+	Query       string
+	TierFilter  string
 }
 
 // ===== Static Data =====
@@ -338,6 +366,7 @@ var funcs = template.FuncMap{
 		return "Rp" + result
 	},
 	"add": func(a, b int) int { return a + b },
+	"mul": func(a, b int) int { return a * b },
 	"cartLen": func(items []CartItem) int {
 		total := 0
 		for _, c := range items {
@@ -395,6 +424,8 @@ var (
 	tplOrderHistory = parsePage("templates/order_history.html")
 	tplAdmin        = parseSimple("admin.html", "templates/admin.html")
 	tplPointReport  = parsePage("templates/poin_report.html")
+	tplMembership   = parsePage("templates/membership.html")
+	tplMembersList  = parsePage("templates/members.html")
 )
 
 // ===== Helper Functions =====
@@ -502,6 +533,24 @@ func initDB() error {
 		return fmt.Errorf("gagal menyiapkan sistem kasir: %w", err)
 	}
 
+	// Tambah kolom membership ke tabel users bila belum ada (idempoten)
+	alterStmts := []string{
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_member TINYINT(1) NOT NULL DEFAULT 0`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS member_since DATETIME DEFAULT NULL`,
+	}
+	for _, stmt := range alterStmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			// MySQL < 8.0 tidak support IF NOT EXISTS pada ALTER TABLE ADD COLUMN,
+			// tapi error "Duplicate column" bisa diabaikan dengan aman.
+			if !strings.Contains(err.Error(), "Duplicate column") {
+				log.Printf("Peringatan ALTER TABLE membership: %v", err)
+			}
+		}
+	}
+
+	// Update seed default accounts user1 & user2 menjadi member jika belum
+	_, _ = db.ExecContext(ctx, "UPDATE users SET is_member = 1, member_since = COALESCE(member_since, NOW()) WHERE role = 'user' AND username IN ('user1', 'user2')")
+
 	return nil
 }
 
@@ -580,26 +629,34 @@ func getUserByUsername(username string) (*User, string, error) {
 	var u User
 	var passwordHash string
 	var active bool
+	var isMember bool
+	var memberSince sql.NullTime
 	err := db.QueryRowContext(context.Background(), `
-		SELECT id, name, username, phone, email, password_hash, role, points, is_active
+		SELECT id, name, username, phone, COALESCE(email,''), password_hash, role, points, is_active,
+		       COALESCE(is_member,0), member_since
 		FROM users
 		WHERE username = ?
 		LIMIT 1`, username).Scan(
 		&u.ID, &u.Name, &u.Username, &u.Phone, &u.Email,
-		&passwordHash, &u.Role, &u.Points, &active,
+		&passwordHash, &u.Role, &u.Points, &active, &isMember, &memberSince,
 	)
 	if err != nil {
 		return nil, "", err
 	}
 	u.PasswordHash = passwordHash
 	u.IsActive = active
+	u.IsMember = isMember
+	if memberSince.Valid {
+		u.MemberSince = &memberSince.Time
+	}
 	return &u, passwordHash, nil
 }
 
 // getAllUsers mengambil daftar pengguna untuk tabel pengguna di dashboard admin.
 func getAllUsers() ([]User, error) {
 	rows, err := db.QueryContext(context.Background(), `
-		SELECT id, name, username, email, phone, role, points, is_active
+		SELECT id, name, username, COALESCE(email,''), phone, role, points, is_active,
+		       COALESCE(is_member,0), member_since
 		FROM users
 		ORDER BY created_at DESC`)
 	if err != nil {
@@ -610,8 +667,14 @@ func getAllUsers() ([]User, error) {
 	users := make([]User, 0)
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Phone, &u.Role, &u.Points, &u.IsActive); err != nil {
+		var isMember bool
+		var memberSince sql.NullTime
+		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Phone, &u.Role, &u.Points, &u.IsActive, &isMember, &memberSince); err != nil {
 			return nil, err
+		}
+		u.IsMember = isMember
+		if memberSince.Valid {
+			u.MemberSince = &memberSince.Time
 		}
 		users = append(users, u)
 	}
@@ -726,6 +789,94 @@ func poinHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tplPoin.ExecuteTemplate(w, "layout", page)
+}
+
+// ===== Membership Handlers (Customer) =====
+
+func membershipHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if sess == nil {
+		addFlash(w, "Silakan login terlebih dahulu untuk mengakses halaman membership.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	u, _, err := getUserByUsername(sess.Username)
+	if err != nil {
+		http.Error(w, "Pengguna tidak ditemukan", http.StatusNotFound)
+		return
+	}
+
+	pts, err := ActivePointBalance(u.ID)
+	if err == nil {
+		u.Points = pts
+	}
+
+	page := MemberPage{
+		PageData: PageData{
+			Title:     "Membership Kopiku",
+			ActiveNav: "membership",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		User:        u,
+		IsMember:    u.IsMember,
+		MemberSince: u.MemberSince,
+		MemberID:    fmt.Sprintf("KPK-%s", strings.ToUpper(u.ID)),
+		Points:      u.Points,
+		TierName:    funcs["tierName"].(func(int) string)(u.Points),
+		TierIcon:    funcs["tierIcon"].(func(int) string)(u.Points),
+	}
+
+	if u.IsMember {
+		if _, lots, _, err := GetUserPointDetail(u.ID); err == nil {
+			page.Lots = lots
+		}
+	}
+
+	if err := tplMembership.ExecuteTemplate(w, "layout", page); err != nil {
+		log.Printf("Gagal render membership template: %v", err)
+		http.Error(w, "Terjadi kesalahan internal", http.StatusInternalServerError)
+	}
+}
+
+func membershipApplyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sess := getSession(r)
+	if sess == nil {
+		addFlash(w, "Silakan login terlebih dahulu untuk mendaftar membership.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	now := time.Now()
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users 
+		SET is_member = 1, 
+		    member_since = COALESCE(member_since, ?)
+		WHERE id = ?`, now, sess.UserID)
+	if err != nil {
+		log.Printf("Gagal mendaftar membership: %v", err)
+		addFlash(w, "Gagal mengaktifkan membership. Silakan coba kembali.")
+		http.Redirect(w, r, "/membership", http.StatusSeeOther)
+		return
+	}
+
+	// Berikan Welcome Bonus Poin 50 jika belum pernah menerima
+	var hasWelcomeLot int
+	_ = db.QueryRowContext(context.Background(), `
+		SELECT COUNT(*) FROM point_lots 
+		WHERE user_id = ? AND note LIKE '%Welcome Bonus%'`, sess.UserID).Scan(&hasWelcomeLot)
+	if hasWelcomeLot == 0 {
+		_, _ = AddPoints(sess.UserID, 50, "", "Welcome Bonus Membership Kopiku")
+	}
+
+	addFlash(w, "🎉 Selamat! Anda resmi terdaftar sebagai Member Kopiku! Bonus 50 poin telah masuk ke akun Anda.")
+	http.Redirect(w, r, "/membership", http.StatusSeeOther)
 }
 
 // ===== Auth Handlers =====
@@ -1302,6 +1453,148 @@ func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ===== Member List & Management Handlers (Admin & Kasir) =====
+
+func adminMembersHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+
+	sess := getSession(r)
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	tierFilter := strings.TrimSpace(r.URL.Query().Get("tier"))
+
+	sqlQuery := `
+		SELECT id, name, username, COALESCE(email,''), phone, role, points, is_active,
+		       COALESCE(is_member,0), member_since
+		FROM users
+		WHERE role = 'user'
+	`
+	var args []any
+	if query != "" {
+		sqlQuery += ` AND (name LIKE ? OR username LIKE ? OR phone LIKE ? OR email LIKE ?)`
+		like := "%" + query + "%"
+		args = append(args, like, like, like, like)
+	}
+	sqlQuery += ` ORDER BY is_member DESC, member_since DESC, points DESC`
+
+	rows, err := db.QueryContext(context.Background(), sqlQuery, args...)
+	if err != nil {
+		log.Printf("Gagal membaca daftar member: %v", err)
+		http.Error(w, "Gagal memuat data member", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var members []User
+	totalPoints := 0
+	bronzeCount, silverCount, goldCount, platCount := 0, 0, 0, 0
+
+	for rows.Next() {
+		var u User
+		var isMember bool
+		var memberSince sql.NullTime
+		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Phone, &u.Role, &u.Points, &u.IsActive, &isMember, &memberSince); err != nil {
+			continue
+		}
+		u.IsMember = isMember
+		if memberSince.Valid {
+			u.MemberSince = &memberSince.Time
+		}
+
+		if pts, err := ActivePointBalance(u.ID); err == nil {
+			u.Points = pts
+		}
+
+		tName := funcs["tierName"].(func(int) string)(u.Points)
+		switch tName {
+		case "Platinum":
+			platCount++
+		case "Gold":
+			goldCount++
+		case "Silver":
+			silverCount++
+		default:
+			bronzeCount++
+		}
+
+		if tierFilter != "" && !strings.EqualFold(tierFilter, tName) {
+			continue
+		}
+
+		totalPoints += u.Points
+		members = append(members, u)
+	}
+
+	page := MembersListPage{
+		PageData: PageData{
+			Title:     "Daftar Member Kopiku",
+			ActiveNav: "adminmembers",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		Members:     members,
+		Total:       len(members),
+		TotalPoints: totalPoints,
+		BronzeCount: bronzeCount,
+		SilverCount: silverCount,
+		GoldCount:   goldCount,
+		PlatCount:   platCount,
+		Query:       query,
+		TierFilter:  tierFilter,
+	}
+
+	if err := tplMembersList.ExecuteTemplate(w, "layout", page); err != nil {
+		log.Printf("Gagal render template members list: %v", err)
+		http.Error(w, "Terjadi kesalahan internal", http.StatusInternalServerError)
+	}
+}
+
+func adminToggleMemberHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID := strings.TrimSpace(r.FormValue("user_id"))
+	if userID == "" {
+		http.Error(w, "User ID wajib diisi", http.StatusBadRequest)
+		return
+	}
+
+	var isMember bool
+	err := db.QueryRowContext(context.Background(), `SELECT COALESCE(is_member, 0) FROM users WHERE id = ?`, userID).Scan(&isMember)
+	if err != nil {
+		addFlash(w, "Pengguna tidak ditemukan.")
+		http.Redirect(w, r, "/admin/members", http.StatusSeeOther)
+		return
+	}
+
+	newStatus := 1
+	if isMember {
+		newStatus = 0
+	}
+
+	_, err = db.ExecContext(context.Background(), `
+		UPDATE users 
+		SET is_member = ?,
+		    member_since = CASE WHEN ? = 1 AND member_since IS NULL THEN NOW() ELSE member_since END
+		WHERE id = ?`, newStatus, newStatus, userID)
+	if err != nil {
+		addFlash(w, "Gagal mengubah status membership.")
+	} else {
+		if newStatus == 1 {
+			addFlash(w, "Status membership pengguna berhasil diaktifkan.")
+		} else {
+			addFlash(w, "Status membership pengguna berhasil dinonaktifkan.")
+		}
+	}
+
+	http.Redirect(w, r, "/admin/members", http.StatusSeeOther)
+}
 
 // ============================================================================
 // SISTEM POIN LOYALITAS (TERINTEGRASI DARI points*.go)
@@ -2970,6 +3263,1789 @@ func formatRupiah(value int) string {
 	return result
 }
 
+// ============================================================================
+// MODUL KASIR & KERANJANG (TERINTEGRASI)
+// ============================================================================
+
+// ===== Tipe dan Konstanta =====
+
+type PromoType string
+
+const (
+	PromoProductPercent  PromoType = "PRODUCT_PERCENT"   // diskon persen untuk produk/kategori
+	PromoMinSpendNominal PromoType = "MIN_SPEND_NOMINAL" // potongan nominal bila belanja >= MinSpend
+	PromoBuy2Get1        PromoType = "BUY2GET1"          // beli 2 gratis 1
+	PromoVoucher         PromoType = "VOUCHER"           // potongan dengan kode voucher
+)
+
+type MemberTier string
+
+const (
+	TierSilver MemberTier = "SILVER"
+	TierGold   MemberTier = "GOLD"
+)
+
+type DiscountChoice string
+
+const (
+	ChoiceAuto     DiscountChoice = "AUTO"      // otomatis yang paling menguntungkan pelanggan
+	ChoiceMinSpend DiscountChoice = "MIN_SPEND" // pilihan kasir: potongan minimal belanja
+	ChoiceVoucher  DiscountChoice = "VOUCHER"   // pilihan kasir: voucher
+)
+
+var ErrInvalidCartItem = errors.New("item keranjang tidak valid: qty harus > 0 dan harga tidak boleh negatif")
+
+// ===== Konfigurasi =====
+
+type CartConfig struct {
+	RupiahPerPoint   int
+	EarnPerRupiah    int
+	MaxRedeemPercent int
+
+	SingleProductPromoPerLine bool
+	VoucherRequiresMember     bool
+	EarnBeforeRedeem          bool
+}
+
+func DefaultCartConfig() CartConfig {
+	return CartConfig{
+		RupiahPerPoint:   RupiahPerPoint,
+		EarnPerRupiah:    PointsPerRupiah,
+		MaxRedeemPercent: 50,
+	}
+}
+
+func (c CartConfig) normalized() CartConfig {
+	d := DefaultCartConfig()
+	if c.RupiahPerPoint <= 0 {
+		c.RupiahPerPoint = d.RupiahPerPoint
+	}
+	if c.EarnPerRupiah <= 0 {
+		c.EarnPerRupiah = d.EarnPerRupiah
+	}
+	if c.MaxRedeemPercent <= 0 || c.MaxRedeemPercent > 100 {
+		c.MaxRedeemPercent = d.MaxRedeemPercent
+	}
+	return c
+}
+
+type CartPromo struct {
+	ID             int64     `json:"id"`
+	Name           string    `json:"name"`
+	Type           PromoType `json:"type"`
+	Value          int       `json:"value"`
+	ValueIsPercent bool      `json:"value_is_percent"`
+	MinSpend       int       `json:"min_spend"`
+
+	Code  string `json:"code"`  // khusus VOUCHER
+	Quota int    `json:"quota"` // khusus VOUCHER; 0 = tanpa batas
+	Used  int    `json:"used"`
+
+	// Masa berlaku per tanggal (inklusif, hanya tanggalnya yang dibandingkan).
+	StartDate *time.Time `json:"start_date"`
+	EndDate   *time.Time `json:"end_date"`
+	// Jam berlaku "HH:MM" (atau "HH:MM:SS"); kosong = seharian.
+	// Bila StartClock > EndClock, promo melewati tengah malam (22:00-02:00).
+	StartClock string `json:"start_clock"`
+	EndClock   string `json:"end_clock"`
+
+	Branches   []string `json:"branches"`    // kosong = semua cabang
+	ProductIDs []int    `json:"product_ids"` // produk/kategori kosong semua = semua produk
+	Categories []string `json:"categories"`
+	Active     bool     `json:"active"`
+}
+
+func parseClock(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	for _, layout := range []string{"15:04", "15:04:05"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.Hour()*60 + t.Minute(), nil
+		}
+	}
+	return 0, fmt.Errorf("format jam tidak valid: %q", s)
+}
+
+func ymd(t time.Time) int { return t.Year()*10000 + int(t.Month())*100 + t.Day() }
+func (p CartPromo) IsActiveAt(branch string, at time.Time) bool {
+	if !p.Active {
+		return false
+	}
+	if len(p.Branches) > 0 && !containsFold(p.Branches, branch) {
+		return false
+	}
+
+	day := at
+	if p.StartClock != "" || p.EndClock != "" {
+		if p.StartClock == "" || p.EndClock == "" {
+			return false // konfigurasi jam tidak lengkap: anggap tidak berlaku
+		}
+		start, err1 := parseClock(p.StartClock)
+		end, err2 := parseClock(p.EndClock)
+		if err1 != nil || err2 != nil {
+			return false
+		}
+		cur := at.Hour()*60 + at.Minute()
+		switch {
+		case start == end: // seharian
+		case start < end:
+			if cur < start || cur >= end {
+				return false
+			}
+		default: // melewati tengah malam
+			switch {
+			case cur >= start: // malam hari: tanggal hari ini
+			case cur < end: // dini hari: bagian dari promo kemarin
+				day = at.AddDate(0, 0, -1)
+			default:
+				return false
+			}
+		}
+	}
+
+	if p.StartDate != nil && ymd(day) < ymd(*p.StartDate) {
+		return false
+	}
+	if p.EndDate != nil && ymd(day) > ymd(*p.EndDate) {
+		return false
+	}
+	return true
+}
+
+func containsFold(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(strings.TrimSpace(v), strings.TrimSpace(s)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p CartPromo) appliesTo(l *cartLine) bool {
+	if len(p.ProductIDs) == 0 && len(p.Categories) == 0 {
+		return true
+	}
+	for _, id := range p.ProductIDs {
+		if id == l.ProductID && id != 0 {
+			return true
+		}
+	}
+	return containsFold(p.Categories, l.Category)
+}
+
+// ===== Input dan Hasil =====
+
+type CartLineInput struct {
+	ProductID int
+	Name      string
+	Category  string
+	Price     int
+	Qty       int
+}
+
+type CartInput struct {
+	Branch string
+	At     time.Time
+	Items  []CartLineInput
+	Promos []CartPromo
+
+	VoucherCode string
+	Choice      DiscountChoice // kosong = AUTO
+
+	MemberID        string
+	Tier            MemberTier
+	PointBalance    int
+	PointsToRedeem  int
+	RedeemMaxPoints bool
+
+	Config *CartConfig // nil = DefaultCartConfig()
+}
+
+type AppliedPromo struct {
+	PromoID int64     `json:"promo_id"`
+	Name    string    `json:"name"`
+	Type    PromoType `json:"type"`
+	Code    string    `json:"code,omitempty"`
+	Amount  int       `json:"amount"`
+}
+
+type CartLine struct {
+	ProductID int            `json:"product_id"`
+	Name      string         `json:"name"`
+	Category  string         `json:"category"`
+	Qty       int            `json:"qty"`
+	UnitPrice int            `json:"unit_price"`
+	Subtotal  int            `json:"subtotal"`
+	FreeQty   int            `json:"free_qty"`
+	Discount  int            `json:"discount"`
+	Total     int            `json:"total"`
+	Promos    []AppliedPromo `json:"promos"`
+}
+
+type CartResult struct {
+	Lines []CartLine `json:"lines"`
+
+	Subtotal             int  `json:"subtotal"`
+	ProductPromoDiscount int  `json:"product_promo_discount"`
+	SpendOrVoucherDisc   int  `json:"spend_or_voucher_discount"`
+	TotalAfterPromo      int  `json:"total_after_promo"`
+	MaxRedeemablePoints  int  `json:"max_redeemable_points"`
+	PointsRedeemed       int  `json:"points_redeemed"`
+	PointsDiscount       int  `json:"points_discount"`
+	TotalPayable         int  `json:"total_payable"`
+	PointsEarned         int  `json:"points_earned"`
+	PointsAdjusted       bool `json:"points_adjusted"` // true bila permintaan tukar poin dikoreksi
+
+	SpendOrVoucherKind DiscountChoice `json:"spend_or_voucher_kind"` // MIN_SPEND / VOUCHER / "" (tidak ada)
+	VoucherCode        string         `json:"voucher_code"`
+	VoucherApplied     bool           `json:"voucher_applied"` // true => kuota voucher harus dikonsumsi saat simpan
+	VoucherMessage     string         `json:"voucher_message"`
+
+	Promos   []AppliedPromo `json:"promos"` // seluruh potongan (produk + min.belanja/voucher)
+	Warnings []string       `json:"warnings"`
+}
+
+// ===== CalculateCart =====
+
+type cartLine struct {
+	CartLineInput
+	FreeQty  int
+	Discount int
+	applied  bool // sudah menerima promo produk (untuk mode tanpa tumpuk)
+	promos   []AppliedPromo
+}
+
+func (l *cartLine) subtotal() int  { return l.Price * l.Qty }
+func (l *cartLine) remaining() int { return l.subtotal() - l.Discount }
+
+func (l *cartLine) add(p CartPromo, amount, freeQty int) {
+	if amount <= 0 {
+		return
+	}
+	l.Discount += amount
+	l.FreeQty += freeQty
+	l.applied = true
+	l.promos = append(l.promos, AppliedPromo{PromoID: p.ID, Name: p.Name, Type: p.Type, Amount: amount})
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// CalculateCart menghitung seluruh keranjang sesuai urutan rancangan.
+func CalculateCart(in CartInput) (CartResult, error) {
+	cfg := DefaultCartConfig()
+	if in.Config != nil {
+		cfg = in.Config.normalized()
+	}
+	res := CartResult{Lines: []CartLine{}, Promos: []AppliedPromo{}, Warnings: []string{}}
+
+	// --- Siapkan baris (gabung product_id ganda, validasi) ---
+	lines := make([]*cartLine, 0, len(in.Items))
+	byProduct := map[int]*cartLine{}
+	for _, it := range in.Items {
+		if it.Qty <= 0 || it.Price < 0 {
+			return CartResult{}, ErrInvalidCartItem
+		}
+		if it.ProductID > 0 {
+			if ex, ok := byProduct[it.ProductID]; ok {
+				ex.Qty += it.Qty
+				continue
+			}
+		}
+		l := &cartLine{CartLineInput: it}
+		if it.ProductID > 0 {
+			byProduct[it.ProductID] = l
+		}
+		lines = append(lines, l)
+	}
+
+	// --- Saring promo yang berlaku pada cabang dan waktu ini ---
+	var active []CartPromo
+	for _, p := range in.Promos {
+		if p.IsActiveAt(in.Branch, in.At) {
+			active = append(active, p)
+		}
+	}
+
+	// --- 1. Subtotal ---
+	for _, l := range lines {
+		res.Subtotal += l.subtotal()
+	}
+
+	// --- 2. Promo produk ---
+	res.Promos = append(res.Promos, applyProductPromos(lines, active, cfg)...)
+	for _, l := range lines {
+		res.ProductPromoDiscount += l.Discount
+	}
+	afterProduct := res.Subtotal - res.ProductPromoDiscount
+
+	// --- 3. Min. belanja ATAU voucher ---
+	hasMember := strings.TrimSpace(in.MemberID) != ""
+	applySpendOrVoucher(&res, in, active, afterProduct, hasMember, cfg)
+
+	// --- 4. Total setelah promo ---
+	res.TotalAfterPromo = afterProduct - res.SpendOrVoucherDisc
+
+	// --- 5. Tukar poin ---
+	redeemPoints(&res, in, hasMember, cfg)
+
+	// --- 6. Total bayar ---
+	res.TotalPayable = res.TotalAfterPromo - res.PointsDiscount
+
+	// --- 7. Poin didapat ---
+	if hasMember {
+		base := res.TotalPayable
+		if cfg.EarnBeforeRedeem {
+			base = res.TotalAfterPromo
+		}
+		res.PointsEarned = earnedPoints(base, in.Tier, cfg)
+	}
+
+	for _, l := range lines {
+		res.Lines = append(res.Lines, CartLine{
+			ProductID: l.ProductID, Name: l.Name, Category: l.Category,
+			Qty: l.Qty, UnitPrice: l.Price, Subtotal: l.subtotal(),
+			FreeQty: l.FreeQty, Discount: l.Discount, Total: l.remaining(),
+			Promos: append([]AppliedPromo{}, l.promos...),
+		})
+	}
+	return res, nil
+}
+
+func earnedPoints(total int, tier MemberTier, cfg CartConfig) int {
+	if total <= 0 {
+		return 0
+	}
+	base := total / cfg.EarnPerRupiah
+	if tier == TierGold {
+		return base * 3 / 2
+	}
+	return base
+}
+
+func applyProductPromos(lines []*cartLine, active []CartPromo, cfg CartConfig) []AppliedPromo {
+	var b2g1, pct []CartPromo
+	for _, p := range active {
+		switch p.Type {
+		case PromoBuy2Get1:
+			b2g1 = append(b2g1, p)
+		case PromoProductPercent:
+			pct = append(pct, p)
+		}
+	}
+	byID := func(s []CartPromo) {
+		sort.SliceStable(s, func(i, j int) bool { return s[i].ID < s[j].ID })
+	}
+	byID(b2g1)
+	byID(pct)
+	if cfg.SingleProductPromoPerLine {
+		// Tanpa tumpuk: tiap baris hanya mendapat satu promo persen, yang terbesar lebih dulu.
+		sort.SliceStable(pct, func(i, j int) bool { return pct[i].Value > pct[j].Value })
+	}
+
+	var out []AppliedPromo
+
+	for _, p := range b2g1 {
+		// Kumpulkan semua unit yang memenuhi syarat dari semua baris yang cocok.
+		var elig []*cartLine
+		total := 0
+		for _, l := range lines {
+			if !p.appliesTo(l) || (cfg.SingleProductPromoPerLine && l.applied) {
+				continue
+			}
+			if avail := l.Qty - l.FreeQty; avail > 0 {
+				elig = append(elig, l)
+				total += avail
+			}
+		}
+		// Tiap kelompok 3 unit: 1 gratis (sisa dari kelipatan 3 tidak gratis, mis. 5 item -> 1 gratis).
+		free := total / 3
+		if free == 0 {
+			continue
+		}
+		// Yang digratiskan adalah unit termurah.
+		sort.SliceStable(elig, func(i, j int) bool { return elig[i].Price < elig[j].Price })
+		amount := 0
+		for _, l := range elig {
+			if free == 0 {
+				break
+			}
+			n := minInt(free, l.Qty-l.FreeQty)
+			l.add(p, n*l.Price, n)
+			amount += n * l.Price
+			free -= n
+		}
+		if amount > 0 {
+			out = append(out, AppliedPromo{PromoID: p.ID, Name: p.Name, Type: p.Type, Amount: amount})
+		}
+	}
+
+	for _, p := range pct {
+		percent := p.Value
+		if percent <= 0 {
+			continue
+		}
+		if percent > 100 {
+			percent = 100
+		}
+		amount := 0
+		for _, l := range lines {
+			if !p.appliesTo(l) || (cfg.SingleProductPromoPerLine && l.applied) {
+				continue
+			}
+			d := l.remaining() * percent / 100 // dibulatkan ke bawah
+			if d > 0 {
+				l.add(p, d, 0)
+				amount += d
+			}
+		}
+		if amount > 0 {
+			out = append(out, AppliedPromo{PromoID: p.ID, Name: p.Name, Type: p.Type, Amount: amount})
+		}
+	}
+	return out
+}
+
+func applySpendOrVoucher(res *CartResult, in CartInput, active []CartPromo, base int, hasMember bool, cfg CartConfig) {
+	res.VoucherCode = strings.ToUpper(strings.TrimSpace(in.VoucherCode))
+
+	var minPromo *CartPromo
+	minDisc := 0
+	for i := range active {
+		p := active[i]
+		if p.Type != PromoMinSpendNominal || p.Value <= 0 || base < p.MinSpend {
+			continue
+		}
+		if d := minInt(p.Value, base); d > minDisc {
+			minDisc, minPromo = d, &active[i]
+		}
+	}
+
+	var vPromo *CartPromo
+	vDisc := 0
+	if res.VoucherCode != "" {
+		vPromo, vDisc, res.VoucherMessage = evalVoucher(res.VoucherCode, active, base, hasMember, cfg)
+	}
+
+	choice := in.Choice
+	if choice == "" {
+		choice = ChoiceAuto
+	}
+	useVoucher := false
+	switch choice {
+	case ChoiceVoucher:
+		useVoucher = vPromo != nil
+		if res.VoucherCode == "" {
+			res.Warnings = append(res.Warnings, "Pilihan voucher dipilih tetapi kode voucher kosong.")
+		}
+	case ChoiceMinSpend:
+		useVoucher = false
+		if vPromo != nil {
+			res.VoucherMessage = "Voucher tidak dipakai karena kasir memilih potongan minimal belanja."
+		}
+	default: // AUTO: yang paling menguntungkan pelanggan; seri -> min. belanja (hemat kuota voucher)
+		useVoucher = vPromo != nil && vDisc > minDisc
+		if vPromo != nil && !useVoucher {
+			if minPromo != nil {
+				res.VoucherMessage = "Voucher tidak dipakai karena potongan minimal belanja lebih menguntungkan."
+			} else {
+				res.VoucherMessage = "Voucher tidak memberi potongan."
+			}
+		}
+	}
+
+	switch {
+	case useVoucher:
+		res.SpendOrVoucherDisc = vDisc
+		res.SpendOrVoucherKind = ChoiceVoucher
+		res.VoucherApplied = true
+		res.VoucherMessage = fmt.Sprintf("Voucher %s dipakai.", vPromo.Code)
+		res.Promos = append(res.Promos, AppliedPromo{PromoID: vPromo.ID, Name: vPromo.Name, Type: vPromo.Type, Code: vPromo.Code, Amount: vDisc})
+	case choice != ChoiceVoucher && minPromo != nil:
+		res.SpendOrVoucherDisc = minDisc
+		res.SpendOrVoucherKind = ChoiceMinSpend
+		res.Promos = append(res.Promos, AppliedPromo{PromoID: minPromo.ID, Name: minPromo.Name, Type: minPromo.Type, Amount: minDisc})
+	}
+}
+
+func evalVoucher(code string, active []CartPromo, base int, hasMember bool, cfg CartConfig) (*CartPromo, int, string) {
+	var v *CartPromo
+	for i := range active {
+		if active[i].Type == PromoVoucher && strings.EqualFold(strings.TrimSpace(active[i].Code), code) {
+			v = &active[i]
+			break
+		}
+	}
+	switch {
+	case v == nil:
+		return nil, 0, "Kode voucher tidak ditemukan atau sedang tidak berlaku."
+	case cfg.VoucherRequiresMember && !hasMember:
+		return nil, 0, "Voucher hanya berlaku untuk member."
+	case v.Quota > 0 && v.Used >= v.Quota:
+		return nil, 0, "Kuota voucher sudah habis."
+	case base < v.MinSpend:
+		return nil, 0, fmt.Sprintf("Minimal belanja voucher adalah %s.", formatRupiah(v.MinSpend))
+	}
+	d := v.Value
+	if v.ValueIsPercent {
+		pct := minInt(v.Value, 100)
+		d = base * pct / 100
+	}
+	d = minInt(d, base)
+	if d <= 0 {
+		return nil, 0, "Voucher tidak memberi potongan."
+	}
+	return v, d, ""
+}
+
+// redeemPoints mengisi langkah 5: maks 50% dari total setelah promo, tidak melebihi saldo.
+func redeemPoints(res *CartResult, in CartInput, hasMember bool, cfg CartConfig) {
+	if !hasMember {
+		if in.PointsToRedeem > 0 || in.RedeemMaxPoints {
+			res.Warnings = append(res.Warnings, "Tukar poin hanya untuk member terdaftar.")
+			res.PointsAdjusted = true
+		}
+		return
+	}
+	maxByRule := res.TotalAfterPromo * cfg.MaxRedeemPercent / 100 / cfg.RupiahPerPoint
+	balance := in.PointBalance
+	if balance < 0 {
+		balance = 0
+	}
+	maxPts := minInt(maxByRule, balance)
+	res.MaxRedeemablePoints = maxPts
+
+	req := in.PointsToRedeem
+	if in.RedeemMaxPoints {
+		req = maxPts
+	}
+	if req < 0 {
+		req = 0
+		res.PointsAdjusted = true
+		res.Warnings = append(res.Warnings, "Jumlah poin tidak boleh negatif; diubah menjadi 0.")
+	}
+	if req > maxPts {
+		res.PointsAdjusted = true
+		if req > balance {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("Saldo poin hanya %d; penukaran disesuaikan menjadi %d poin.", balance, maxPts))
+		} else {
+			res.Warnings = append(res.Warnings, fmt.Sprintf("Penukaran dibatasi %d%% dari total; disesuaikan menjadi %d poin.", cfg.MaxRedeemPercent, maxPts))
+		}
+		req = maxPts
+	}
+	res.PointsRedeemed = req
+	res.PointsDiscount = req * cfg.RupiahPerPoint
+}
+
+var cartConfig = DefaultCartConfig()
+
+const (
+	maxCartLines = 100
+	maxLineQty   = 1000
+)
+
+// ===== Titik sambung antar modul =====
+
+var (
+	cartNow = time.Now
+
+	cartActivePromos = func(ctx context.Context, branch string, at time.Time) ([]CartPromo, error) {
+		if cartDemoPromosEnabled() {
+			return demoCartPromos(), nil
+		}
+		return nil, nil
+	}
+
+	cartMemberTier = func(ctx context.Context, memberID string, at time.Time) (MemberTier, error) {
+		pts, _ := ActivePointBalance(memberID)
+		if pts >= 1500 {
+			return TierGold, nil
+		}
+		return TierSilver, nil
+	}
+
+	cartPointBalance = func(ctx context.Context, memberID string, at time.Time) (int, error) {
+		return ActivePointBalance(memberID)
+	}
+
+	cartLoadProducts = loadProductsByIDs
+	cartLoadVoucher  = loadVoucherAsPromo
+)
+
+func cartDemoPromosEnabled() bool { return os.Getenv("CART_DEMO_PROMOS") == "1" }
+
+func demoCartPromos() []CartPromo {
+	return []CartPromo{
+		{ID: 101, Name: "Beli 2 Gratis 1 Kopi", Type: PromoBuy2Get1, Categories: []string{"Kopi"}, Active: true},
+		{ID: 102, Name: "Happy Hour Makanan 20%", Type: PromoProductPercent, Value: 20, Categories: []string{"Makanan"},
+			StartClock: "14:00", EndClock: "17:00", Active: true},
+		{ID: 103, Name: "Promo Malam Non-Kopi 30%", Type: PromoProductPercent, Value: 30, Categories: []string{"Non-Kopi"},
+			StartClock: "22:00", EndClock: "02:00", Active: true},
+		{ID: 104, Name: "Potongan Belanja Rp150rb", Type: PromoMinSpendNominal, Value: 15000, MinSpend: 150000, Active: true},
+	}
+}
+
+func loadProductsByIDs(ctx context.Context, ids []int) (map[int]ProductDB, error) {
+	out := make(map[int]ProductDB, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	args := make([]any, len(ids))
+	marks := make([]string, len(ids))
+	for i, id := range ids {
+		args[i] = id
+		marks[i] = "?"
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, name, category, price, is_active
+		FROM products
+		WHERE id IN (`+strings.Join(marks, ",")+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p ProductDB
+		if err := rows.Scan(&p.ID, &p.Name, &p.Category, &p.Price, &p.IsActive); err != nil {
+			return nil, err
+		}
+		out[p.ID] = p
+	}
+	return out, rows.Err()
+}
+
+func loadVoucherAsPromo(ctx context.Context, code string, at time.Time) (*CartPromo, error) {
+	var v VoucherDB
+	var validUntil sql.NullTime
+	err := db.QueryRowContext(ctx, `
+		SELECT id, code, title, discount_type, discount_value, min_purchase, quota, used_count, valid_until, is_active
+		FROM vouchers WHERE code = ? LIMIT 1`, code).Scan(
+		&v.ID, &v.Code, &v.Title, &v.DiscountType, &v.DiscountValue,
+		&v.MinPurchase, &v.Quota, &v.UsedCount, &validUntil, &v.IsActive)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	active := v.IsActive && (!validUntil.Valid || validUntil.Time.After(at))
+	return &CartPromo{
+		ID: v.ID, Name: v.Title, Type: PromoVoucher, Code: v.Code,
+		Value: v.DiscountValue, ValueIsPercent: v.DiscountType != "fixed",
+		MinSpend: v.MinPurchase, Quota: v.Quota, Used: v.UsedCount, Active: active,
+	}, nil
+}
+
+// ===== Request / Handler =====
+
+type cartPreviewItem struct {
+	ProductID int `json:"product_id"`
+	Qty       int `json:"qty"`
+}
+
+type cartPreviewRequest struct {
+	Branch         string            `json:"branch"`
+	MemberID       string            `json:"member_id"`
+	VoucherCode    string            `json:"voucher_code"`
+	At             string            `json:"at"`              // opsional, simulasi waktu: "2006-01-02T15:04"
+	DiscountChoice string            `json:"discount_choice"` // AUTO (default) | MIN_SPEND | VOUCHER
+	PointsUsed     int               `json:"points_used"`
+	RedeemMax      bool              `json:"redeem_max"`
+	Items          []cartPreviewItem `json:"items"`
+}
+
+func buildCartPreview(ctx context.Context, req cartPreviewRequest) (CartResult, int, string) {
+	now := cartNow()
+	if strings.TrimSpace(req.At) != "" {
+		t, err := time.ParseInLocation("2006-01-02T15:04", strings.TrimSpace(req.At), now.Location())
+		if err != nil {
+			return CartResult{}, http.StatusBadRequest, "Format waktu simulasi tidak valid"
+		}
+		now = t
+	}
+	branch := strings.TrimSpace(req.Branch)
+	if branch == "" {
+		return CartResult{}, http.StatusBadRequest, "Cabang wajib dipilih"
+	}
+	if len(req.Items) > maxCartLines {
+		return CartResult{}, http.StatusBadRequest, "Jumlah item keranjang terlalu banyak"
+	}
+
+	choice := DiscountChoice(strings.ToUpper(strings.TrimSpace(req.DiscountChoice)))
+	switch choice {
+	case "", ChoiceAuto, ChoiceMinSpend, ChoiceVoucher:
+	default:
+		return CartResult{}, http.StatusBadRequest, "discount_choice harus AUTO, MIN_SPEND, atau VOUCHER"
+	}
+
+	// Gabungkan product_id ganda, pertahankan urutan.
+	qty := map[int]int{}
+	ids := make([]int, 0, len(req.Items))
+	for _, it := range req.Items {
+		if it.ProductID <= 0 || it.Qty <= 0 || it.Qty > maxLineQty {
+			return CartResult{}, http.StatusBadRequest, "Item atau jumlah produk tidak valid"
+		}
+		if _, ok := qty[it.ProductID]; !ok {
+			ids = append(ids, it.ProductID)
+		}
+		qty[it.ProductID] += it.Qty
+		if qty[it.ProductID] > maxLineQty {
+			return CartResult{}, http.StatusBadRequest, "Item atau jumlah produk tidak valid"
+		}
+	}
+
+	products, err := cartLoadProducts(ctx, ids)
+	if err != nil {
+		log.Printf("cart preview: gagal memuat produk: %v", err)
+		return CartResult{}, http.StatusInternalServerError, "Gagal memuat harga produk"
+	}
+	items := make([]CartLineInput, 0, len(ids))
+	for _, id := range ids {
+		p, ok := products[id]
+		if !ok || !p.IsActive {
+			return CartResult{}, http.StatusBadRequest, "Produk tidak tersedia"
+		}
+		items = append(items, CartLineInput{ProductID: p.ID, Name: p.Name, Category: p.Category, Price: p.Price, Qty: qty[id]})
+	}
+
+	promos, err := cartActivePromos(ctx, branch, now)
+	if err != nil {
+		log.Printf("cart preview: gagal memuat promo: %v", err)
+		return CartResult{}, http.StatusInternalServerError, "Gagal memuat promo"
+	}
+	code := strings.ToUpper(strings.TrimSpace(req.VoucherCode))
+	if code != "" {
+		v, err := cartLoadVoucher(ctx, code, now)
+		if err != nil {
+			log.Printf("cart preview: gagal memuat voucher: %v", err)
+			return CartResult{}, http.StatusInternalServerError, "Gagal memeriksa voucher"
+		}
+		if v != nil {
+			promos = append(append([]CartPromo{}, promos...), *v)
+		}
+	}
+
+	cfg := cartConfig
+	in := CartInput{
+		Config: &cfg,
+		Branch: branch, At: now, Items: items, Promos: promos,
+		VoucherCode: code, Choice: choice,
+		MemberID: strings.TrimSpace(req.MemberID), Tier: TierSilver,
+		PointsToRedeem: req.PointsUsed, RedeemMaxPoints: req.RedeemMax,
+	}
+	if in.MemberID != "" {
+		if in.PointBalance, err = cartPointBalance(ctx, in.MemberID, now); err != nil {
+			log.Printf("cart preview: gagal memuat saldo poin: %v", err)
+			return CartResult{}, http.StatusInternalServerError, "Gagal memuat saldo poin member"
+		}
+		if in.Tier, err = cartMemberTier(ctx, in.MemberID, now); err != nil {
+			log.Printf("cart preview: gagal memuat tingkat member: %v", err)
+			return CartResult{}, http.StatusInternalServerError, "Gagal memuat tingkat member"
+		}
+	}
+
+	res, err := CalculateCart(in)
+	if err != nil {
+		return CartResult{}, http.StatusBadRequest, err.Error()
+	}
+	return res, http.StatusOK, ""
+}
+
+// apiKasirCartPreviewHandler melayani POST /api/kasir/cart/preview.
+func apiKasirCartPreviewHandler(w http.ResponseWriter, r *http.Request) {
+	if !isStaff(getSession(r)) {
+		writeJSONError(w, http.StatusForbidden, "Akses ditolak")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req cartPreviewRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Payload JSON tidak valid")
+		return
+	}
+
+	res, status, msg := buildCartPreview(r.Context(), req)
+	if status != http.StatusOK {
+		writeJSONError(w, status, msg)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"status": "ok", "cart": res})
+}
+
+// ===== Halaman Kalkulator Keranjang =====
+
+type KeranjangPage struct {
+	PageData
+	Products       []ProductDB
+	Branches       []Branch
+	RupiahPerPoint int
+	DemoPromos     bool
+}
+
+var tplKeranjang = parsePage("templates/keranjang.html")
+
+// keranjangHandler melayani GET /keranjang (kasir/admin).
+func keranjangHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if !isStaff(sess) {
+		addFlash(w, "Silakan login sebagai kasir atau admin.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+	products, err := getActiveProducts(r.Context())
+	if err != nil {
+		log.Printf("Gagal memuat produk kalkulator keranjang: %v", err)
+		http.Error(w, "Gagal memuat katalog produk.", http.StatusInternalServerError)
+		return
+	}
+	_ = tplKeranjang.ExecuteTemplate(w, "layout", KeranjangPage{
+		PageData: PageData{
+			Title:     "Kalkulator Keranjang",
+			ActiveNav: "keranjang",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		Products:       products,
+		Branches:       branches,
+		RupiahPerPoint: RupiahPerPoint,
+		DemoPromos:     cartDemoPromosEnabled(),
+	})
+}
+
+// ===== Struct Data Kasir & Transaksi =====
+
+type ProductDB struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Desc     string `json:"desc"`
+	Price    int    `json:"price"`
+	Category string `json:"category"`
+	Icon     string `json:"icon"`
+	IsActive bool   `json:"is_active"`
+}
+
+type VoucherDB struct {
+	ID            int64      `json:"id"`
+	Code          string     `json:"code"`
+	Title         string     `json:"title"`
+	DiscountType  string     `json:"discount_type"`  // "percent" atau "fixed"
+	DiscountValue int        `json:"discount_value"` // persen (0-100) atau nominal rupiah
+	MinPurchase   int        `json:"min_purchase"`
+	Quota         int        `json:"quota"`
+	UsedCount     int        `json:"used_count"`
+	ValidUntil    *time.Time `json:"valid_until"`
+	IsActive      bool       `json:"is_active"`
+}
+
+type TransactionRecord struct {
+	ID              string
+	CashierID       string
+	CashierName     string
+	MemberID        string
+	MemberName      string
+	MemberUsername  string
+	Branch          string
+	Subtotal        int
+	VoucherDiscount int
+	PointsUsed      int
+	PointsDiscount  int
+	TotalDiscount   int
+	GrandTotal      int
+	PointsEarned    int
+	PayMethod       string
+	CashReceived    int
+	ChangeAmount    int
+	Status          string
+	CreatedAt       time.Time
+	Items           []TransactionItemSnapshot
+	Promos          []TransactionPromoSnapshot
+}
+
+type TransactionItemSnapshot struct {
+	ID                  int64
+	TransactionID       string
+	ProductID           int
+	ProductNameSnapshot string
+	CategorySnapshot    string
+	UnitPriceSnapshot   int
+	Qty                 int
+	SubtotalSnapshot    int
+}
+
+type TransactionPromoSnapshot struct {
+	ID                     int64
+	TransactionID          string
+	VoucherID              *int64
+	PromoCodeSnapshot      string
+	PromoTitleSnapshot     string
+	DiscountTypeSnapshot   string
+	DiscountValueSnapshot  int
+	DiscountAmountSnapshot int
+}
+
+type KasirPage struct {
+	PageData
+	Products       []ProductDB
+	Branches       []Branch
+	RupiahPerPoint int
+}
+
+type TransaksiListPage struct {
+	PageData
+	Transactions []TransactionRecord
+	SearchQuery  string
+	FilterDate   string
+	TotalOmzet   int
+}
+
+type TransaksiDetailPage struct {
+	PageData
+	Trx *TransactionRecord
+}
+
+// ===== Template Halaman Kasir & Transaksi =====
+
+var (
+	tplKasir           = parsePage("templates/kasir.html")
+	tplTransaksiList   = parsePage("templates/transaksi_list.html")
+	tplTransaksiDetail = parsePage("templates/transaksi_detail.html")
+)
+
+// ===== Inisialisasi Skema Database Kasir & Transaksi =====
+
+func initCashierSchema(ctx context.Context) error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS products (
+			id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+			name VARCHAR(150) NOT NULL,
+			description VARCHAR(255) NOT NULL DEFAULT '',
+			price INT NOT NULL,
+			category VARCHAR(60) NOT NULL,
+			icon VARCHAR(16) NOT NULL DEFAULT '☕',
+			is_active TINYINT(1) NOT NULL DEFAULT 1,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uq_products_name (name)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS vouchers (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			code VARCHAR(50) NOT NULL,
+			title VARCHAR(150) NOT NULL,
+			discount_type VARCHAR(16) NOT NULL DEFAULT 'percent',
+			discount_value INT NOT NULL,
+			min_purchase INT NOT NULL DEFAULT 0,
+			quota INT NOT NULL DEFAULT 100,
+			used_count INT NOT NULL DEFAULT 0,
+			valid_until DATETIME DEFAULT NULL,
+			is_active TINYINT(1) NOT NULL DEFAULT 1,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uq_vouchers_code (code)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS transactions (
+			id VARCHAR(64) NOT NULL,
+			cashier_id VARCHAR(64) NOT NULL,
+			cashier_name VARCHAR(150) NOT NULL,
+			member_id VARCHAR(64) DEFAULT NULL,
+			member_name VARCHAR(150) NOT NULL DEFAULT 'Walk-in Guest',
+			branch VARCHAR(100) NOT NULL,
+			subtotal INT NOT NULL,
+			voucher_discount INT NOT NULL DEFAULT 0,
+			points_used INT NOT NULL DEFAULT 0,
+			points_discount INT NOT NULL DEFAULT 0,
+			total_discount INT NOT NULL DEFAULT 0,
+			grand_total INT NOT NULL,
+			points_earned INT NOT NULL DEFAULT 0,
+			pay_method VARCHAR(50) NOT NULL,
+			cash_received INT NOT NULL DEFAULT 0,
+			change_amount INT NOT NULL DEFAULT 0,
+			status VARCHAR(20) NOT NULL DEFAULT 'paid',
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY idx_transactions_created (created_at),
+			KEY idx_transactions_member (member_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS transaction_items (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			transaction_id VARCHAR(64) NOT NULL,
+			product_id INT UNSIGNED NOT NULL,
+			product_name_snapshot VARCHAR(150) NOT NULL,
+			category_snapshot VARCHAR(60) NOT NULL DEFAULT '',
+			unit_price_snapshot INT NOT NULL,
+			qty INT NOT NULL,
+			subtotal_snapshot INT NOT NULL,
+			PRIMARY KEY (id),
+			KEY idx_trx_items_trx (transaction_id),
+			CONSTRAINT fk_trx_items_trx FOREIGN KEY (transaction_id)
+				REFERENCES transactions (id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+
+		`CREATE TABLE IF NOT EXISTS transaction_promos (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			transaction_id VARCHAR(64) NOT NULL,
+			voucher_id BIGINT UNSIGNED DEFAULT NULL,
+			promo_code_snapshot VARCHAR(50) NOT NULL,
+			promo_title_snapshot VARCHAR(150) NOT NULL,
+			discount_type_snapshot VARCHAR(20) NOT NULL,
+			discount_value_snapshot INT NOT NULL,
+			discount_amount_snapshot INT NOT NULL,
+			PRIMARY KEY (id),
+			KEY idx_trx_promos_trx (transaction_id),
+			CONSTRAINT fk_trx_promos_trx FOREIGN KEY (transaction_id)
+				REFERENCES transactions (id) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+	}
+
+	for _, stmt := range stmts {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("gagal menyiapkan tabel kasir: %w", err)
+		}
+	}
+
+	// Seed tabel products dari slice menuItems bila masih kosong
+	var prodCount int
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM products").Scan(&prodCount)
+	if prodCount == 0 {
+		for _, m := range menuItems {
+			_, _ = db.ExecContext(ctx, `
+				INSERT INTO products (name, description, price, category, icon, is_active)
+				VALUES (?, ?, ?, ?, ?, 1)`,
+				m.Name, m.Desc, m.Price, m.Category, m.Icon)
+		}
+	}
+
+	// Seed tabel vouchers dari slice promos bila masih kosong
+	var voucherCount int
+	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM vouchers").Scan(&voucherCount)
+	if voucherCount == 0 {
+		expiry := time.Now().AddDate(0, 6, 0)
+		for _, p := range promos {
+			_, _ = db.ExecContext(ctx, `
+				INSERT INTO vouchers (code, title, discount_type, discount_value, min_purchase, quota, used_count, valid_until, is_active)
+				VALUES (?, ?, 'percent', ?, 0, 500, 0, ?, 1)`,
+				p.Code, p.Title, p.Discount, expiry)
+		}
+	}
+
+	return nil
+}
+
+func getActiveProducts(ctx context.Context) ([]ProductDB, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, name, description, price, category, icon, is_active
+		FROM products
+		WHERE is_active = 1
+		ORDER BY id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	list := make([]ProductDB, 0)
+	for rows.Next() {
+		var p ProductDB
+		if err := rows.Scan(&p.ID, &p.Name, &p.Desc, &p.Price, &p.Category, &p.Icon, &p.IsActive); err != nil {
+			return nil, err
+		}
+		list = append(list, p)
+	}
+	return list, rows.Err()
+}
+
+// ===== Handler Halaman Kasir =====
+
+func kasirHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if !isStaff(sess) {
+		addFlash(w, "Silakan login sebagai kasir atau admin.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	products, err := getActiveProducts(r.Context())
+	if err != nil {
+		log.Printf("Gagal memuat produk kasir: %v", err)
+		http.Error(w, "Gagal memuat katalog produk.", http.StatusInternalServerError)
+		return
+	}
+
+	_ = tplKasir.ExecuteTemplate(w, "layout", KasirPage{
+		PageData: PageData{
+			Title:     "Kasir POS",
+			ActiveNav: "kasir",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		Products:       products,
+		Branches:       branches,
+		RupiahPerPoint: RupiahPerPoint,
+	})
+}
+
+// ===== API Cari Member & Saldo Poin Aktif =====
+
+func apiKasirSearchMemberHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(q) < 2 {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]any{})
+		return
+	}
+
+	like := "%" + q + "%"
+	rows, err := db.QueryContext(r.Context(), `
+		SELECT id, name, username, phone, email, COALESCE(is_member, 0)
+		FROM users
+		WHERE role = 'user' AND is_active = 1
+		  AND (name LIKE ? OR username LIKE ? OR phone LIKE ? OR email LIKE ?)
+		ORDER BY is_member DESC, name ASC
+		LIMIT 10`, like, like, like, like)
+	if err != nil {
+		http.Error(w, "Gagal mencari member", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type memberDTO struct {
+		ID           string `json:"id"`
+		Name         string `json:"name"`
+		Username     string `json:"username"`
+		Phone        string `json:"phone"`
+		Email        string `json:"email"`
+		ActivePoints int    `json:"active_points"`
+		RupiahValue  int    `json:"rupiah_value"`
+		IsMember     bool   `json:"is_member"`
+		Tier         string `json:"tier"`
+	}
+
+	results := make([]memberDTO, 0)
+	for rows.Next() {
+		var m memberDTO
+		var isMember bool
+		if err := rows.Scan(&m.ID, &m.Name, &m.Username, &m.Phone, &m.Email, &isMember); err != nil {
+			continue
+		}
+		m.IsMember = isMember
+		// Sinkronisasi kedaluwarsa & hitung saldo aktif real-time
+		pts, err := ActivePointBalance(m.ID)
+		if err == nil {
+			m.ActivePoints = pts
+			m.RupiahValue = pts * RupiahPerPoint
+		}
+		m.Tier = funcs["tierName"].(func(int) string)(m.ActivePoints)
+		results = append(results, m)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// ===== API Validasi Voucher =====
+
+func calculateVoucherDiscount(v VoucherDB, subtotal int) (int, error) {
+	if !v.IsActive {
+		return 0, errors.New("voucher tidak aktif")
+	}
+	if v.ValidUntil != nil && !v.ValidUntil.After(time.Now()) {
+		return 0, errors.New("masa berlaku voucher sudah habis")
+	}
+	if v.UsedCount >= v.Quota {
+		return 0, errors.New("kuota voucher sudah habis")
+	}
+	if subtotal < v.MinPurchase {
+		return 0, fmt.Errorf("minimal belanja untuk voucher ini adalah %s", formatRupiah(v.MinPurchase))
+	}
+
+	discount := 0
+	if v.DiscountType == "fixed" {
+		discount = v.DiscountValue
+	} else {
+		discount = subtotal * v.DiscountValue / 100
+	}
+	if discount > subtotal {
+		discount = subtotal
+	}
+	return discount, nil
+}
+
+func apiKasirCheckVoucherHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Code     string `json:"code"`
+		Subtotal int    `json:"subtotal"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Format request tidak valid")
+		return
+	}
+
+	code := strings.ToUpper(strings.TrimSpace(req.Code))
+	if code == "" {
+		writeJSONError(w, http.StatusBadRequest, "Kode voucher wajib diisi")
+		return
+	}
+
+	var v VoucherDB
+	var validUntil sql.NullTime
+	err := db.QueryRowContext(r.Context(), `
+		SELECT id, code, title, discount_type, discount_value, min_purchase, quota, used_count, valid_until, is_active
+		FROM vouchers
+		WHERE code = ?
+		LIMIT 1`, code).Scan(
+		&v.ID, &v.Code, &v.Title, &v.DiscountType, &v.DiscountValue,
+		&v.MinPurchase, &v.Quota, &v.UsedCount, &validUntil, &v.IsActive,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSONError(w, http.StatusNotFound, "Kode voucher tidak ditemukan")
+		return
+	}
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Gagal memeriksa voucher")
+		return
+	}
+	if validUntil.Valid {
+		v.ValidUntil = &validUntil.Time
+	}
+
+	discount, err := calculateVoucherDiscount(v, req.Subtotal)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":          "ok",
+		"voucher_id":      v.ID,
+		"code":            v.Code,
+		"title":           v.Title,
+		"discount_type":   v.DiscountType,
+		"discount_value":  v.DiscountValue,
+		"discount_amount": discount,
+	})
+}
+
+// ===== API Checkout Kasir (Satu DB Transaction + FOR UPDATE + Snapshot) =====
+
+type checkoutItemPayload struct {
+	ProductID int `json:"product_id"`
+	Qty       int `json:"qty"`
+}
+
+type kasirCheckoutPayload struct {
+	Branch       string                `json:"branch"`
+	MemberID     string                `json:"member_id"`
+	GuestName    string                `json:"guest_name"`
+	VoucherCode  string                `json:"voucher_code"`
+	PointsUsed   int                   `json:"points_used"`
+	PayMethod    string                `json:"pay_method"`
+	CashReceived int                   `json:"cash_received"`
+	Items        []checkoutItemPayload `json:"items"`
+}
+
+func apiKasirCheckoutHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if !isStaff(sess) {
+		writeJSONError(w, http.StatusForbidden, "Akses ditolak")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req kasirCheckoutPayload
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Payload JSON tidak valid")
+		return
+	}
+
+	req.Branch = strings.TrimSpace(req.Branch)
+	req.MemberID = strings.TrimSpace(req.MemberID)
+	req.GuestName = strings.TrimSpace(req.GuestName)
+	req.VoucherCode = strings.ToUpper(strings.TrimSpace(req.VoucherCode))
+	req.PayMethod = strings.TrimSpace(req.PayMethod)
+
+	if req.Branch == "" {
+		writeJSONError(w, http.StatusBadRequest, "Cabang wajib dipilih")
+		return
+	}
+	if len(req.Items) == 0 {
+		writeJSONError(w, http.StatusBadRequest, "Keranjang belanja masih kosong")
+		return
+	}
+	if req.PointsUsed < 0 {
+		writeJSONError(w, http.StatusBadRequest, "Jumlah poin tidak valid")
+		return
+	}
+	if req.PointsUsed > 0 && req.MemberID == "" {
+		writeJSONError(w, http.StatusBadRequest, "Penukaran poin hanya berlaku untuk member terdaftar")
+		return
+	}
+	if req.PayMethod == "" {
+		req.PayMethod = "Tunai"
+	}
+
+	// Gabungkan qty jika ada product_id yang dikirim ganda
+	qtyByProduct := make(map[int]int)
+	orderedIDs := make([]int, 0, len(req.Items))
+	for _, it := range req.Items {
+		if it.ProductID <= 0 || it.Qty <= 0 {
+			writeJSONError(w, http.StatusBadRequest, "Item atau jumlah produk tidak valid")
+			return
+		}
+		if _, exists := qtyByProduct[it.ProductID]; !exists {
+			orderedIDs = append(orderedIDs, it.ProductID)
+		}
+		qtyByProduct[it.ProductID] += it.Qty
+	}
+
+	ctx := r.Context()
+	// Mulai SATU DB Transaction untuk keseluruhan proses penyimpanan
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		log.Printf("Gagal memulai DB transaction: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "Gagal memulai transaksi database")
+		return
+	}
+	defer tx.Rollback()
+
+	// 1. Ambil harga asli produk dari DB untuk membentuk snapshot transaction_items
+	itemSnapshots := make([]TransactionItemSnapshot, 0, len(orderedIDs))
+	subtotal := 0
+	for _, pid := range orderedIDs {
+		var p ProductDB
+		err := tx.QueryRowContext(ctx, `
+			SELECT id, name, category, price, is_active
+			FROM products
+			WHERE id = ?`, pid).Scan(&p.ID, &p.Name, &p.Category, &p.Price, &p.IsActive)
+		if errors.Is(err, sql.ErrNoRows) || !p.IsActive {
+			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Produk ID %d tidak tersedia", pid))
+			return
+		}
+		if err != nil {
+			log.Printf("Error membaca produk: %v", err)
+			writeJSONError(w, http.StatusInternalServerError, "Gagal memvalidasi harga produk")
+			return
+		}
+
+		qty := qtyByProduct[pid]
+		lineSubtotal := p.Price * qty
+		subtotal += lineSubtotal
+
+		itemSnapshots = append(itemSnapshots, TransactionItemSnapshot{
+			ProductID:           p.ID,
+			ProductNameSnapshot: p.Name,
+			CategorySnapshot:    p.Category,
+			UnitPriceSnapshot:   p.Price,
+			Qty:                 qty,
+			SubtotalSnapshot:    lineSubtotal,
+		})
+	}
+
+	trxID := "TRX-" + time.Now().Format("20060102") + "-" + randID()
+
+	// 2. Kunci baris voucher dengan FOR UPDATE (bila voucher digunakan)
+	voucherDiscount := 0
+	var promoSnapshot *TransactionPromoSnapshot
+	if req.VoucherCode != "" {
+		var v VoucherDB
+		var validUntil sql.NullTime
+		err := tx.QueryRowContext(ctx, `
+			SELECT id, code, title, discount_type, discount_value, min_purchase, quota, used_count, valid_until, is_active
+			FROM vouchers
+			WHERE code = ?
+			FOR UPDATE`, req.VoucherCode).Scan(
+			&v.ID, &v.Code, &v.Title, &v.DiscountType, &v.DiscountValue,
+			&v.MinPurchase, &v.Quota, &v.UsedCount, &validUntil, &v.IsActive,
+		)
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSONError(w, http.StatusBadRequest, "Kode voucher tidak ditemukan")
+			return
+		}
+		if err != nil {
+			log.Printf("Error mengunci voucher: %v", err)
+			writeJSONError(w, http.StatusInternalServerError, "Gagal memvalidasi voucher")
+			return
+		}
+		if validUntil.Valid {
+			v.ValidUntil = &validUntil.Time
+		}
+
+		voucherDiscount, err = calculateVoucherDiscount(v, subtotal)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE vouchers SET used_count = used_count + 1 WHERE id = ?`, v.ID); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Gagal memperbarui kuota voucher")
+			return
+		}
+
+		vID := v.ID
+		promoSnapshot = &TransactionPromoSnapshot{
+			TransactionID:          trxID,
+			VoucherID:              &vID,
+			PromoCodeSnapshot:      v.Code,
+			PromoTitleSnapshot:     v.Title,
+			DiscountTypeSnapshot:   v.DiscountType,
+			DiscountValueSnapshot:  v.DiscountValue,
+			DiscountAmountSnapshot: voucherDiscount,
+		}
+	}
+
+	// 3. Validasi member & kunci lot poin FIFO dengan FOR UPDATE (bila menukar poin)
+	memberName := "Walk-in Guest"
+	if req.GuestName != "" {
+		memberName = req.GuestName
+	}
+
+	pointsDiscount := 0
+	if req.MemberID != "" {
+		var mName string
+		var mActive bool
+		err := tx.QueryRowContext(ctx, `
+			SELECT name, is_active
+			FROM users
+			WHERE id = ? AND role = 'user'
+			FOR UPDATE`, req.MemberID).Scan(&mName, &mActive)
+		if errors.Is(err, sql.ErrNoRows) || !mActive {
+			writeJSONError(w, http.StatusBadRequest, "Data member tidak ditemukan atau tidak aktif")
+			return
+		}
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Gagal memeriksa data member")
+			return
+		}
+		memberName = mName
+
+		if req.PointsUsed > 0 {
+			remainingAfterVoucher := subtotal - voucherDiscount
+			maxUsefulPoints := remainingAfterVoucher / RupiahPerPoint
+			if req.PointsUsed > maxUsefulPoints {
+				writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Maksimal poin yang dapat dipakai untuk tagihan ini adalah %d poin", maxUsefulPoints))
+				return
+			}
+
+			// redeemPointsTx mengunci point_lots aktif dengan FOR UPDATE (urut expires_at ASC),
+			// memotong FIFO, mencatat point_redemptions, dan menulis mutasi ke point_ledger
+			if _, err := redeemPointsTx(ctx, tx, req.MemberID, req.PointsUsed, trxID, "Penukaran poin kasir "+trxID, ""); err != nil {
+				writeJSONError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			pointsDiscount = req.PointsUsed * RupiahPerPoint
+		}
+	}
+
+	totalDiscount := voucherDiscount + pointsDiscount
+	if totalDiscount > subtotal {
+		totalDiscount = subtotal
+	}
+	grandTotal := subtotal - totalDiscount
+
+	// Validasi pembayaran tunai
+	changeAmount := 0
+	if strings.EqualFold(req.PayMethod, "Tunai") {
+		if req.CashReceived < grandTotal {
+			writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Uang tunai kurang dari total tagihan (%s)", formatRupiah(grandTotal)))
+			return
+		}
+		changeAmount = req.CashReceived - grandTotal
+	} else {
+		req.CashReceived = grandTotal
+	}
+
+	// Hitung perolehan poin baru untuk member
+	pointsEarned := 0
+	if req.MemberID != "" && grandTotal >= PointsPerRupiah {
+		pointsEarned = grandTotal / PointsPerRupiah
+	}
+
+	// 4. Simpan header transaksi ke tabel transactions
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO transactions (
+			id, cashier_id, cashier_name, member_id, member_name, branch,
+			subtotal, voucher_discount, points_used, points_discount,
+			total_discount, grand_total, points_earned,
+			pay_method, cash_received, change_amount, status
+		) VALUES (?, ?, ?, NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid')`,
+		trxID, sess.UserID, sess.Name, req.MemberID, memberName, req.Branch,
+		subtotal, voucherDiscount, req.PointsUsed, pointsDiscount,
+		totalDiscount, grandTotal, pointsEarned,
+		req.PayMethod, req.CashReceived, changeAmount,
+	); err != nil {
+		log.Printf("Gagal menyimpan header transaksi: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "Gagal menyimpan transaksi")
+		return
+	}
+
+	// 5. Simpan snapshot item ke transaction_items
+	for _, item := range itemSnapshots {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO transaction_items (
+				transaction_id, product_id, product_name_snapshot,
+				category_snapshot, unit_price_snapshot, qty, subtotal_snapshot
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			trxID, item.ProductID, item.ProductNameSnapshot,
+			item.CategorySnapshot, item.UnitPriceSnapshot, item.Qty, item.SubtotalSnapshot,
+		); err != nil {
+			log.Printf("Gagal menyimpan snapshot item transaksi: %v", err)
+			writeJSONError(w, http.StatusInternalServerError, "Gagal menyimpan rincian item transaksi")
+			return
+		}
+	}
+
+	// 6. Simpan snapshot promo/voucher ke transaction_promos
+	if promoSnapshot != nil {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO transaction_promos (
+				transaction_id, voucher_id, promo_code_snapshot, promo_title_snapshot,
+				discount_type_snapshot, discount_value_snapshot, discount_amount_snapshot
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			trxID, promoSnapshot.VoucherID, promoSnapshot.PromoCodeSnapshot, promoSnapshot.PromoTitleSnapshot,
+			promoSnapshot.DiscountTypeSnapshot, promoSnapshot.DiscountValueSnapshot, promoSnapshot.DiscountAmountSnapshot,
+		); err != nil {
+			log.Printf("Gagal menyimpan snapshot promo transaksi: %v", err)
+			writeJSONError(w, http.StatusInternalServerError, "Gagal menyimpan rincian promo transaksi")
+			return
+		}
+	}
+
+	// 7. Tambahkan lot poin baru (masa berlaku 6 bulan) di dalam DB transaction yang sama
+	if req.MemberID != "" && pointsEarned > 0 {
+		if _, err := addPointsTx(ctx, tx, req.MemberID, pointsEarned, trxID, "Poin transaksi kasir "+trxID); err != nil {
+			log.Printf("Gagal menambahkan poin transaksi: %v", err)
+			writeJSONError(w, http.StatusInternalServerError, "Gagal mencatat perolehan poin member")
+			return
+		}
+	}
+
+	// Commit seluruh operasi secara atomik
+	if err := tx.Commit(); err != nil {
+		log.Printf("Gagal commit transaksi kasir: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "Gagal menyelesaikan transaksi")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"status":         "ok",
+		"transaction_id": trxID,
+		"grand_total":    grandTotal,
+		"change_amount":  changeAmount,
+		"points_earned":  pointsEarned,
+	})
+}
+
+func writeJSONError(w http.ResponseWriter, code int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  "error",
+		"message": msg,
+	})
+}
+
+// ===== Handler Daftar Transaksi (/transaksi) =====
+
+func transaksiListHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if !isStaff(sess) {
+		addFlash(w, "Silakan login sebagai kasir atau admin.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	dateFilter := strings.TrimSpace(r.URL.Query().Get("date"))
+
+	query := `
+		SELECT t.id, t.cashier_id, t.cashier_name, COALESCE(t.member_id, ''), t.member_name,
+		       COALESCE(u.username, ''), t.branch, t.subtotal, t.voucher_discount,
+		       t.points_used, t.points_discount, t.total_discount, t.grand_total,
+		       t.points_earned, t.pay_method, t.cash_received, t.change_amount,
+		       t.status, t.created_at
+		FROM transactions t
+		LEFT JOIN users u ON u.id = t.member_id
+		WHERE 1=1`
+	args := make([]any, 0)
+
+	if search != "" {
+		like := "%" + search + "%"
+		query += ` AND (t.id LIKE ? OR t.member_name LIKE ? OR t.cashier_name LIKE ? OR u.username LIKE ?)`
+		args = append(args, like, like, like, like)
+	}
+	if dateFilter != "" {
+		query += ` AND DATE(t.created_at) = ?`
+		args = append(args, dateFilter)
+	}
+	query += ` ORDER BY t.created_at DESC LIMIT 200`
+
+	rows, err := db.QueryContext(r.Context(), query, args...)
+	if err != nil {
+		log.Printf("Gagal memuat daftar transaksi: %v", err)
+		http.Error(w, "Gagal memuat daftar transaksi.", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	list := make([]TransactionRecord, 0)
+	totalOmzet := 0
+	for rows.Next() {
+		var tr TransactionRecord
+		if err := rows.Scan(
+			&tr.ID, &tr.CashierID, &tr.CashierName, &tr.MemberID, &tr.MemberName,
+			&tr.MemberUsername, &tr.Branch, &tr.Subtotal, &tr.VoucherDiscount,
+			&tr.PointsUsed, &tr.PointsDiscount, &tr.TotalDiscount, &tr.GrandTotal,
+			&tr.PointsEarned, &tr.PayMethod, &tr.CashReceived, &tr.ChangeAmount,
+			&tr.Status, &tr.CreatedAt,
+		); err != nil {
+			log.Printf("Error scan transaksi: %v", err)
+			continue
+		}
+		if tr.Status == "paid" {
+			totalOmzet += tr.GrandTotal
+		}
+		list = append(list, tr)
+	}
+
+	_ = tplTransaksiList.ExecuteTemplate(w, "layout", TransaksiListPage{
+		PageData: PageData{
+			Title:     "Daftar Transaksi",
+			ActiveNav: "transaksi",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		Transactions: list,
+		SearchQuery:  search,
+		FilterDate:   dateFilter,
+		TotalOmzet:   totalOmzet,
+	})
+}
+
+// ===== Handler Detail Transaksi (/transaksi/{id}) =====
+
+func transaksiDetailHandler(w http.ResponseWriter, r *http.Request) {
+	sess := getSession(r)
+	if !isStaff(sess) {
+		addFlash(w, "Silakan login sebagai kasir atau admin.")
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
+	trxID := strings.TrimPrefix(r.URL.Path, "/transaksi/")
+	trxID = strings.TrimSpace(trxID)
+	if trxID == "" {
+		http.Redirect(w, r, "/transaksi", http.StatusSeeOther)
+		return
+	}
+
+	var tr TransactionRecord
+	err := db.QueryRowContext(r.Context(), `
+		SELECT t.id, t.cashier_id, t.cashier_name, COALESCE(t.member_id, ''), t.member_name,
+		       COALESCE(u.username, ''), t.branch, t.subtotal, t.voucher_discount,
+		       t.points_used, t.points_discount, t.total_discount, t.grand_total,
+		       t.points_earned, t.pay_method, t.cash_received, t.change_amount,
+		       t.status, t.created_at
+		FROM transactions t
+		LEFT JOIN users u ON u.id = t.member_id
+		WHERE t.id = ?
+		LIMIT 1`, trxID).Scan(
+		&tr.ID, &tr.CashierID, &tr.CashierName, &tr.MemberID, &tr.MemberName,
+		&tr.MemberUsername, &tr.Branch, &tr.Subtotal, &tr.VoucherDiscount,
+		&tr.PointsUsed, &tr.PointsDiscount, &tr.TotalDiscount, &tr.GrandTotal,
+		&tr.PointsEarned, &tr.PayMethod, &tr.CashReceived, &tr.ChangeAmount,
+		&tr.Status, &tr.CreatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		log.Printf("Gagal memuat detail transaksi: %v", err)
+		http.Error(w, "Gagal memuat detail transaksi.", http.StatusInternalServerError)
+		return
+	}
+
+	// Ambil snapshot item dari transaction_items
+	itemRows, err := db.QueryContext(r.Context(), `
+		SELECT id, transaction_id, product_id, product_name_snapshot,
+		       category_snapshot, unit_price_snapshot, qty, subtotal_snapshot
+		FROM transaction_items
+		WHERE transaction_id = ?
+		ORDER BY id ASC`, trxID)
+	if err == nil {
+		defer itemRows.Close()
+		for itemRows.Next() {
+			var it TransactionItemSnapshot
+			if err := itemRows.Scan(
+				&it.ID, &it.TransactionID, &it.ProductID, &it.ProductNameSnapshot,
+				&it.CategorySnapshot, &it.UnitPriceSnapshot, &it.Qty, &it.SubtotalSnapshot,
+			); err == nil {
+				tr.Items = append(tr.Items, it)
+			}
+		}
+	}
+
+	// Ambil snapshot promo dari transaction_promos
+	promoRows, err := db.QueryContext(r.Context(), `
+		SELECT id, transaction_id, voucher_id, promo_code_snapshot, promo_title_snapshot,
+		       discount_type_snapshot, discount_value_snapshot, discount_amount_snapshot
+		FROM transaction_promos
+		WHERE transaction_id = ?
+		ORDER BY id ASC`, trxID)
+	if err == nil {
+		defer promoRows.Close()
+		for promoRows.Next() {
+			var pr TransactionPromoSnapshot
+			var vID sql.NullInt64
+			if err := promoRows.Scan(
+				&pr.ID, &pr.TransactionID, &vID, &pr.PromoCodeSnapshot, &pr.PromoTitleSnapshot,
+				&pr.DiscountTypeSnapshot, &pr.DiscountValueSnapshot, &pr.DiscountAmountSnapshot,
+			); err == nil {
+				if vID.Valid {
+					idVal := vID.Int64
+					pr.VoucherID = &idVal
+				}
+				tr.Promos = append(tr.Promos, pr)
+			}
+		}
+	}
+
+	_ = tplTransaksiDetail.ExecuteTemplate(w, "layout", TransaksiDetailPage{
+		PageData: PageData{
+			Title:     "Detail Transaksi " + tr.ID,
+			ActiveNav: "transaksi",
+			Session:   sess,
+			Flash:     getFlash(w, r),
+		},
+		Trx: &tr,
+	})
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -2988,6 +5064,8 @@ func main() {
 	mux.HandleFunc("/cabang", cabangHandler)
 	mux.HandleFunc("/promo", promoHandler)
 	mux.HandleFunc("/poin", poinHandler)
+	mux.HandleFunc("/membership", membershipHandler)
+	mux.HandleFunc("/membership/apply", membershipApplyHandler)
 
 	// Auth (Login & Register - tidak saling memblokir / bebas diakses)
 	mux.HandleFunc("/login", loginHandler)
@@ -3007,6 +5085,8 @@ func main() {
 
 	// Admin Dashboard & Kasir POS (Bisa langsung dibuka di /admin)
 	mux.HandleFunc("/admin", adminHandler)
+	mux.HandleFunc("/admin/members", adminMembersHandler)
+	mux.HandleFunc("/admin/members/toggle", adminToggleMemberHandler)
 	mux.HandleFunc("/admin/order/update", adminUpdateOrderHandler)
 	mux.HandleFunc("/admin/order/create", adminCreateOrderHandler)
 

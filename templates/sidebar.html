@@ -119,8 +119,11 @@
     <span class="nav-icon">🎁</span> Promo
     <span class="nav-badge">4</span>
 </a>
-<a href="/poin" class="nav-item {{if eq .ActiveNav " poin"}}active{{end}}">
+<a href="/poin" class="nav-item {{if eq .ActiveNav "poin"}}active{{end}}">
     <span class="nav-icon">⭐</span> Sistem Poin
+</a>
+<a href="/membership" class="nav-item {{if eq .ActiveNav "membership"}}active{{end}}">
+    <span class="nav-icon">🎖️</span> Membership
 </a>
 
 {{if .Session}}
@@ -128,10 +131,10 @@
 <hr class="nav-divider">
 <p class="nav-section-label">Pesanan</p>
 
-<a href="/order" class="nav-item {{if eq .ActiveNav " order"}}active{{end}}">
+<a href="/order" class="nav-item {{if eq .ActiveNav "order"}}active{{end}}">
     <span class="nav-icon">🛒</span> Pesan Sekarang
 </a>
-<a href="/orders" class="nav-item {{if eq .ActiveNav " orders"}}active{{end}}">
+<a href="/orders" class="nav-item {{if eq .ActiveNav "orders"}}active{{end}}">
     <span class="nav-icon">📦</span> Riwayat Pesanan
 </a>
 {{end}}
@@ -142,19 +145,22 @@
 <hr class="nav-divider">
 <p class="nav-section-label">Staff</p>
 
-<a href="/kasir" class="nav-item {{if eq .ActiveNav " kasir"}}active{{end}}">
+<a href="/kasir" class="nav-item {{if eq .ActiveNav "kasir"}}active{{end}}">
     <span class="nav-icon">🧾</span> Kasir POS
+</a>
+<a href="/admin/members" class="nav-item {{if eq .ActiveNav "adminmembers"}}active{{end}}">
+    <span class="nav-icon">👥</span> Daftar Member
 </a>
 <a href="/keranjang" class="nav-item {{if eq .ActiveNav "keranjang"}}active{{end}}">
     <span class="nav-icon">🧮</span> Kalkulator Keranjang
 </a>
-<a href="/transaksi" class="nav-item {{if eq .ActiveNav " transaksi"}}active{{end}}">
+<a href="/transaksi" class="nav-item {{if eq .ActiveNav "transaksi"}}active{{end}}">
     <span class="nav-icon">📑</span> Daftar Transaksi
 </a>
-<a href="/admin" class="nav-item {{if eq .ActiveNav " admin"}}active{{end}}">
+<a href="/admin" class="nav-item {{if eq .ActiveNav "admin"}}active{{end}}">
     <span class="nav-icon">📊</span> Dashboard Admin
 </a>
-<a href="/admin/poin" class="nav-item {{if eq .ActiveNav " adminpoin"}}active{{end}}">
+<a href="/admin/poin" class="nav-item {{if eq .ActiveNav "adminpoin"}}active{{end}}">
     <span class="nav-icon">📈</span> Laporan Poin
 </a>
 {{end}}

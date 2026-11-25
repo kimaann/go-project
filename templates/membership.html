@@ -1,0 +1,582 @@
+{{define "content"}}
+<style>
+    .membership-container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding-bottom: 50px;
+    }
+
+    .page-head {
+        margin-bottom: 28px;
+    }
+
+    .page-head h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 32px;
+        color: var(--dark-roast);
+        margin-bottom: 6px;
+    }
+
+    .page-head p {
+        color: var(--text-muted);
+        font-size: 15px;
+    }
+
+    /* Flash Message */
+    .flash-alert {
+        background: #E8F5E9;
+        color: #2E7D32;
+        border-left: 4px solid #2E7D32;
+        padding: 14px 18px;
+        border-radius: var(--radius);
+        margin-bottom: 24px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: var(--shadow);
+    }
+
+    /* Virtual Member Card */
+    .card-wrapper {
+        perspective: 1000px;
+        margin-bottom: 32px;
+    }
+
+    .member-card {
+        background: linear-gradient(135deg, #1A0A00 0%, #3B2012 40%, #7A471C 80%, #C4862A 100%);
+        border-radius: 20px;
+        padding: 30px 36px;
+        color: #FDF6EE;
+        box-shadow: 0 16px 36px rgba(44, 26, 14, 0.35);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(196, 134, 42, 0.4);
+    }
+
+    .member-card::before {
+        content: '';
+        position: absolute;
+        top: -60px;
+        right: -60px;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(196, 134, 42, 0.25) 0%, transparent 70%);
+        pointer-events: none;
+    }
+
+    .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+    }
+
+    .card-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .brand-icon {
+        font-size: 28px;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 8px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .brand-title {
+        font-family: 'Playfair Display', serif;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        color: #FDF6EE;
+    }
+
+    .brand-sub {
+        font-size: 11px;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: var(--caramel);
+    }
+
+    .card-tier-badge {
+        background: rgba(196, 134, 42, 0.3);
+        border: 1px solid var(--caramel);
+        color: #FFF;
+        padding: 6px 14px;
+        border-radius: 30px;
+        font-size: 13px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        letter-spacing: 0.5px;
+    }
+
+    .card-chip {
+        width: 44px;
+        height: 32px;
+        background: linear-gradient(135deg, #ffd700, #b8860b);
+        border-radius: 6px;
+        margin-bottom: 22px;
+        opacity: 0.85;
+        border: 1px solid #ffe4b5;
+    }
+
+    .card-number {
+        font-family: 'Courier New', monospace;
+        font-size: 20px;
+        letter-spacing: 4px;
+        margin-bottom: 20px;
+        color: #F5E6D0;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+
+    .card-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+    }
+
+    .card-holder-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: rgba(245, 230, 208, 0.6);
+        margin-bottom: 2px;
+    }
+
+    .card-holder-name {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+    }
+
+    .card-since {
+        text-align: right;
+    }
+
+    .card-since-val {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--caramel);
+    }
+
+    /* Stats Grid */
+    .member-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-bottom: 32px;
+    }
+
+    .stat-box {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 22px 24px;
+        box-shadow: var(--shadow);
+        border-top: 3px solid var(--caramel);
+    }
+
+    .stat-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .stat-val {
+        font-size: 26px;
+        font-weight: 800;
+        color: var(--dark-roast);
+    }
+
+    .stat-sub {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    /* Benefits Section */
+    .benefits-box {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 28px 32px;
+        box-shadow: var(--shadow);
+        margin-bottom: 32px;
+    }
+
+    .benefits-box h3 {
+        font-family: 'Playfair Display', serif;
+        font-size: 20px;
+        color: var(--dark-roast);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .benefits-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    .benefit-item {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        background: var(--milk);
+        border-radius: 10px;
+    }
+
+    .benefit-icon {
+        font-size: 22px;
+        line-height: 1;
+    }
+
+    .benefit-text strong {
+        display: block;
+        font-size: 14px;
+        color: var(--espresso);
+        margin-bottom: 2px;
+    }
+
+    .benefit-text p {
+        font-size: 12px;
+        color: var(--text-muted);
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    /* Actions Bar */
+    .quick-actions {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .btn-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-action-primary {
+        background: var(--caramel);
+        color: #fff;
+    }
+
+    .btn-action-primary:hover {
+        background: var(--dark-roast);
+        color: #fff;
+    }
+
+    .btn-action-secondary {
+        background: var(--white);
+        color: var(--dark-roast);
+        border: 1px solid rgba(44, 26, 14, 0.2);
+    }
+
+    .btn-action-secondary:hover {
+        background: var(--milk);
+        color: var(--espresso);
+    }
+
+    /* ================================================= */
+    /* APPLICATION FORM STYLES (When NOT yet a member)   */
+    /* ================================================= */
+    .apply-card {
+        background: var(--white);
+        border-radius: var(--radius);
+        padding: 36px 40px;
+        box-shadow: var(--shadow);
+    }
+
+    .apply-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .apply-header h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 28px;
+        color: var(--dark-roast);
+        margin-bottom: 8px;
+    }
+
+    .apply-header p {
+        font-size: 15px;
+        color: var(--text-muted);
+        max-width: 560px;
+        margin: 0 auto;
+    }
+
+    .perks-list {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+        margin-bottom: 32px;
+    }
+
+    .perk-card {
+        background: var(--milk);
+        border: 1px solid rgba(196, 134, 42, 0.2);
+        border-radius: 12px;
+        padding: 20px 18px;
+        text-align: center;
+    }
+
+    .perk-icon {
+        font-size: 32px;
+        margin-bottom: 10px;
+    }
+
+    .perk-title {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--dark-roast);
+        margin-bottom: 4px;
+    }
+
+    .perk-desc {
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.4;
+    }
+
+    .apply-box {
+        background: linear-gradient(135deg, var(--milk) 0%, #fff 100%);
+        border: 2px dashed var(--caramel);
+        border-radius: 16px;
+        padding: 28px 30px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .apply-user-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .apply-avatar {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        background: var(--caramel);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .apply-details h4 {
+        margin: 0 0 4px;
+        font-size: 16px;
+        color: var(--espresso);
+    }
+
+    .apply-details p {
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-muted);
+    }
+
+    .btn-apply {
+        background: linear-gradient(135deg, var(--caramel) 0%, #a46b1a 100%);
+        color: #fff;
+        border: none;
+        padding: 14px 28px;
+        border-radius: 12px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 14px rgba(196, 134, 42, 0.4);
+    }
+
+    .btn-apply:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 18px rgba(196, 134, 42, 0.5);
+    }
+</style>
+
+<div class="membership-container">
+
+    {{if .Flash}}
+    <div class="flash-alert">
+        <span>✨</span> {{.Flash}}
+    </div>
+    {{end}}
+
+    {{if .IsMember}}
+    <!-- ============================================== -->
+    <!-- TAMPILAN JIKA SUDAH MENJADI MEMBER AKTIF      -->
+    <!-- ============================================== -->
+    <div class="page-head">
+        <h1>🎖️ Status Membership</h1>
+        <p>Kartu digital dan privilege eksklusif Anda sebagai Member Kopiku.</p>
+    </div>
+
+    <!-- Virtual Member Card -->
+    <div class="card-wrapper">
+        <div class="member-card">
+            <div class="card-top">
+                <div class="card-brand">
+                    <div class="brand-icon">☕</div>
+                    <div>
+                        <div class="brand-title">KOPIKU</div>
+                        <div class="brand-sub">Coffee Roasters Member</div>
+                    </div>
+                </div>
+                <div class="card-tier-badge">
+                    <span>{{.TierIcon}}</span> {{.TierName}}
+                </div>
+            </div>
+
+            <div class="card-chip"></div>
+
+            <div class="card-number">{{.MemberID}}</div>
+
+            <div class="card-bottom">
+                <div>
+                    <div class="card-holder-label">Nama Pemegang Kartu</div>
+                    <div class="card-holder-name">{{.User.Name}}</div>
+                </div>
+                <div class="card-since">
+                    <div class="card-holder-label">Bergabung Sejak</div>
+                    <div class="card-since-val">
+                        {{if .MemberSince}}{{.MemberSince.Format "02 Jan 2006"}}{{else}}Member Aktif{{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="member-stats">
+        <div class="stat-box">
+            <div class="stat-label">Saldo Poin Aktif</div>
+            <div class="stat-val">{{.Points}} <small style="font-size:14px;font-weight:600;">pts</small></div>
+            <div class="stat-sub">Senilai {{rupiah (mul .Points 50)}} diskon</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Tingkat Member</div>
+            <div class="stat-val">{{.TierIcon}} {{.TierName}}</div>
+            <div class="stat-sub">Status: Member Aktif ✅</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Bonus Transaksi</div>
+            <div class="stat-val">1 pt / Rp1.000</div>
+            <div class="stat-sub">Otomatis masuk ke akun</div>
+        </div>
+    </div>
+
+    <!-- Benefits Box -->
+    <div class="benefits-box">
+        <h3>🎁 Privilege Membership Anda</h3>
+        <div class="benefits-grid">
+            <div class="benefit-item">
+                <div class="benefit-icon">🪙</div>
+                <div class="benefit-text">
+                    <strong>Kumpulkan & Tukar Poin</strong>
+                    <p>Dapatkan 1 poin setiap belanja Rp 1.000, bisa langsung ditukarkan diskon.</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">🏷️</div>
+                <div class="benefit-text">
+                    <strong>Voucher Eksklusif Member</strong>
+                    <p>Gunakan kode voucher promo khusus hanya untuk anggota terdaftar.</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">⚡</div>
+                <div class="benefit-text">
+                    <strong>Tingkatan Tier Spesial</strong>
+                    <p>Raih status Silver, Gold, dan Platinum untuk multiplier poin lebih tinggi.</p>
+                </div>
+            </div>
+            <div class="benefit-item">
+                <div class="benefit-icon">🎂</div>
+                <div class="benefit-text">
+                    <strong>Hadiah Ulang Tahun</strong>
+                    <p>Minuman gratis pilihanmu saat merayakan hari spesialmu di cabang kami.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="/poin" class="btn-action btn-action-primary">⭐ Cek & Tukar Poin</a>
+        <a href="/order" class="btn-action btn-action-secondary">🛒 Pesan Kopi Sekarang</a>
+        <a href="/orders" class="btn-action btn-action-secondary">📦 Riwayat Pesanan</a>
+    </div>
+
+    {{else}}
+    <!-- ============================================== -->
+    <!-- TAMPILAN JIKA BELUM MENJADI MEMBER (APPLY)     -->
+    <!-- ============================================== -->
+    <div class="apply-card">
+        <div class="apply-header">
+            <div style="font-size:42px;margin-bottom:10px;">🌟</div>
+            <h2>Bergabung Menjadi Member Kopiku</h2>
+            <p>Dapatkan cashback poin di setiap cangkir kopi, voucher diskon khusus, dan akses berbagai promo eksklusif.</p>
+        </div>
+
+        <div class="perks-list">
+            <div class="perk-card">
+                <div class="perk-icon">☕</div>
+                <div class="perk-title">Poin Tiap Transaksi</div>
+                <div class="perk-desc">Dapatkan 1 poin setiap Rp 1.000 belanja di seluruh cabang kami.</div>
+            </div>
+            <div class="perk-card">
+                <div class="perk-icon">🎁</div>
+                <div class="perk-title">Bonus 50 Poin</div>
+                <div class="perk-desc">Langsung dapatkan Welcome Bonus 50 Poin saat mendaftar hari ini.</div>
+            </div>
+            <div class="perk-card">
+                <div class="perk-icon">🏷️</div>
+                <div class="perk-title">Voucher Rahasia</div>
+                <div class="perk-desc">Akses promo & voucher khusus yang hanya terbuka bagi member.</div>
+            </div>
+        </div>
+
+        <form action="/membership/apply" method="POST">
+            <div class="apply-box">
+                <div class="apply-user-info">
+                    <div class="apply-avatar">{{slice .User.Name 0 1}}</div>
+                    <div class="apply-details">
+                        <h4>{{.User.Name}} (@{{.User.Username}})</h4>
+                        <p>Email: {{.User.Email}} • No. HP: {{.User.Phone}}</p>
+                    </div>
+                </div>
+                <button type="submit" class="btn-apply">
+                    ✨ Daftar Membership Sekarang (Gratis)
+                </button>
+            </div>
+        </form>
+    </div>
+    {{end}}
+
+</div>
+{{end}}
