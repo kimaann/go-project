@@ -1,338 +1,5 @@
 {{define "content"}}
 <style>
-.detail-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.detail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.detail-header h2 {
-    margin: 0;
-    color: var(--dark-roast);
-}
-
-.detail-card {
-    background: #fff;
-    border-radius: var(--radius);
-    padding: 22px;
-    box-shadow: var(--shadow);
-}
-
-.detail-card h3 {
-    margin: 0 0 18px;
-    color: var(--dark-roast);
-    font-size: 17px;
-}
-
-.detail-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-}
-
-.detail-item small {
-    display: block;
-    color: var(--text-muted);
-    margin-bottom: 5px;
-}
-
-.detail-item strong {
-    color: var(--dark-roast);
-    overflow-wrap: anywhere;
-}
-
-.detail-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.detail-table th,
-.detail-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-}
-
-.detail-table th {
-    background: var(--dark-roast);
-    color: var(--cream);
-}
-
-.detail-table td:last-child,
-.detail-table th:last-child {
-    text-align: right;
-}
-
-.detail-total {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 9px 0;
-}
-
-.detail-grand-total {
-    border-top: 2px solid var(--dark-roast);
-    margin-top: 10px;
-    padding-top: 16px;
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--dark-roast);
-}
-
-.detail-badge {
-    display: inline-block;
-    padding: 6px 12px;
-    border-radius: 20px;
-    background: #e5f5e9;
-    color: #217a3c;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.detail-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-@media(max-width: 600px) {
-    .detail-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .detail-card {
-        padding: 15px;
-        overflow-x: auto;
-    }
-
-    .detail-table {
-        min-width: 500px;
-    }
-}
-</style>
-
-<div class="detail-container">
-
-    <div class="detail-header">
-        <div>
-            <h2>Detail Transaksi</h2>
-            <p style="color:var(--text-muted); margin-top:6px;">
-                Informasi lengkap transaksi Kopiku
-            </p>
-        </div>
-
-        <div class="detail-actions">
-            <a href="/transaksi" class="btn btn-outline">
-                Kembali
-            </a>
-        </div>
-    </div>
-
-    <!-- INFORMASI TRANSAKSI -->
-    <div class="detail-card">
-        <h3>Informasi Transaksi</h3>
-
-        <div class="detail-grid">
-            <div class="detail-item">
-                <small>ID Transaksi</small>
-                <strong>{{.Trx.ID}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Tanggal Transaksi</small>
-                <strong>{{.Trx.CreatedAt.Format "02-01-2006 15:04"}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Status Transaksi</small>
-                <span class="detail-badge">{{.Trx.Status}}</span>
-            </div>
-
-            <div class="detail-item">
-                <small>Cabang</small>
-                <strong>{{.Trx.Branch}}</strong>
-            </div>
-        </div>
-    </div>
-
-    <!-- INFORMASI KASIR DAN MEMBER -->
-    <div class="detail-card">
-        <h3>Informasi Kasir dan Pelanggan</h3>
-
-        <div class="detail-grid">
-            <div class="detail-item">
-                <small>Nama Kasir</small>
-                <strong>{{.Trx.CashierName}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>ID Kasir</small>
-                <strong>{{.Trx.CashierID}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Nama Pelanggan</small>
-                <strong>{{.Trx.MemberName}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Username Member</small>
-                <strong>
-                    {{if .Trx.MemberUsername}}
-                        {{.Trx.MemberUsername}}
-                    {{else}}
-                        -
-                    {{end}}
-                </strong>
-            </div>
-        </div>
-    </div>
-
-    <!-- RINCIAN PRODUK -->
-    <div class="detail-card">
-        <h3>Rincian Produk</h3>
-
-        <table class="detail-table">
-            <thead>
-                <tr>
-                    <th>No.</th>
-                    <th>Nama Produk</th>
-                    <th>Kategori</th>
-                    <th>Harga</th>
-                    <th>Qty</th>
-                    <th>Subtotal</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {{range $i, $item := .Trx.Items}}
-                <tr>
-                    <td>{{add $i 1}}</td>
-                    <td>{{$item.ProductNameSnapshot}}</td>
-                    <td>{{$item.CategorySnapshot}}</td>
-                    <td>{{rupiah $item.UnitPriceSnapshot}}</td>
-                    <td>{{$item.Qty}}</td>
-                    <td>{{rupiah $item.SubtotalSnapshot}}</td>
-                </tr>
-                {{else}}
-                <tr>
-                    <td colspan="6" style="text-align:center;">
-                        Tidak ada rincian produk.
-                    </td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- INFORMASI PROMO -->
-    <div class="detail-card">
-        <h3>Promo dan Voucher</h3>
-
-        {{if .Trx.Promos}}
-        <table class="detail-table">
-            <thead>
-                <tr>
-                    <th>Kode Promo</th>
-                    <th>Nama Promo</th>
-                    <th>Diskon</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                {{range .Trx.Promos}}
-                <tr>
-                    <td>{{.PromoCodeSnapshot}}</td>
-                    <td>{{.PromoTitleSnapshot}}</td>
-                    <td>{{rupiah .DiscountAmountSnapshot}}</td>
-                </tr>
-                {{end}}
-            </tbody>
-        </table>
-        {{else}}
-        <p style="color:var(--text-muted);">
-            Tidak menggunakan promo.
-        </p>
-        {{end}}
-    </div>
-
-    <!-- RINCIAN PEMBAYARAN -->
-    <div class="detail-card">
-        <h3>Rincian Pembayaran</h3>
-
-        <div class="detail-total">
-            <span>Subtotal Produk</span>
-            <strong>{{rupiah .Trx.Subtotal}}</strong>
-        </div>
-
-        <div class="detail-total">
-            <span>Diskon Voucher</span>
-            <strong>- {{rupiah .Trx.VoucherDiscount}}</strong>
-        </div>
-
-        <div class="detail-total">
-            <span>Diskon Poin</span>
-            <strong>- {{rupiah .Trx.PointsDiscount}}</strong>
-        </div>
-
-        <div class="detail-total">
-            <span>Total Diskon</span>
-            <strong>- {{rupiah .Trx.TotalDiscount}}</strong>
-        </div>
-
-        <div class="detail-total detail-grand-total">
-            <span>Total Pembayaran</span>
-            <strong>{{rupiah .Trx.GrandTotal}}</strong>
-        </div>
-    </div>
-
-    <!-- INFORMASI PEMBAYARAN DAN POIN -->
-    <div class="detail-card">
-        <h3>Pembayaran dan Poin Member</h3>
-
-        <div class="detail-grid">
-            <div class="detail-item">
-                <small>Metode Pembayaran</small>
-                <strong>{{.Trx.PayMethod}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Uang Diterima</small>
-                <strong>{{rupiah .Trx.CashReceived}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Uang Kembalian</small>
-                <strong>{{rupiah .Trx.ChangeAmount}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Poin Digunakan</small>
-                <strong>{{.Trx.PointsUsed}} poin</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Diskon Poin</small>
-                <strong>{{rupiah .Trx.PointsDiscount}}</strong>
-            </div>
-
-            <div class="detail-item">
-                <small>Poin Diperoleh</small>
-                <strong>{{.Trx.PointsEarned}} poin</strong>
-            </div>
-        </div>
-    </div>
-
-</div>
-{{end}}
     .receipt-card {
         max-width: 720px;
         margin: 0 auto;
@@ -435,8 +102,10 @@
     <div class="receipt-meta">
         <div>
             <strong>Pelanggan:</strong> {{.Trx.MemberName}}
-            {{if .Trx.MemberUsername}}(@{{.Trx.MemberUsername}}){{end}}<br>
+            {{if .Trx.MemberUsername}}(@{{.Trx.MemberUsername}}){{end}}
+            {{if .Trx.MemberID}}<small style="color:var(--text-muted); display:block;">ID: {{.Trx.MemberID}}</small>{{end}}<br>
             <strong>Kasir:</strong> {{.Trx.CashierName}}
+            {{if .Trx.CashierID}}<small style="color:var(--text-muted); display:inline;">(ID: {{.Trx.CashierID}})</small>{{end}}
         </div>
         <div style="text-align:right;">
             <strong>Metode Bayar:</strong> {{.Trx.PayMethod}}<br>
@@ -466,6 +135,10 @@
                 <td>{{rupiah .UnitPriceSnapshot}}</td>
                 <td>{{.Qty}}</td>
                 <td style="text-align:right; font-weight:600;">{{rupiah .SubtotalSnapshot}}</td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="4" style="text-align:center; color:var(--text-muted);">Tidak ada rincian produk.</td>
             </tr>
             {{end}}
         </tbody>
@@ -498,18 +171,15 @@
     <div style="margin-top:16px;">
         <div class="tot-row"><span>Subtotal</span><span>{{rupiah .Trx.Subtotal}}</span></div>
         {{if gt .Trx.VoucherDiscount 0}}
-        <div class="tot-row" style="color:#2e7d32;"><span>Diskon Voucher</span><span>-{{rupiah
-                .Trx.VoucherDiscount}}</span></div>
+        <div class="tot-row" style="color:#2e7d32;"><span>Diskon Voucher</span><span>-{{rupiah .Trx.VoucherDiscount}}</span></div>
         {{end}}
         {{if gt .Trx.PointsDiscount 0}}
-        <div class="tot-row" style="color:#2e7d32;"><span>Tukar {{.Trx.PointsUsed}} Poin</span><span>-{{rupiah
-                .Trx.PointsDiscount}}</span></div>
+        <div class="tot-row" style="color:#2e7d32;"><span>Tukar {{.Trx.PointsUsed}} Poin</span><span>-{{rupiah .Trx.PointsDiscount}}</span></div>
         {{end}}
         <div class="tot-grand"><span>Grand Total</span><span>{{rupiah .Trx.GrandTotal}}</span></div>
         <div class="tot-row"><span>Dibayar ({{.Trx.PayMethod}})</span><span>{{rupiah .Trx.CashReceived}}</span></div>
         {{if gt .Trx.ChangeAmount 0}}
-        <div class="tot-row" style="font-weight:600; color:var(--caramel);"><span>Kembalian</span><span>{{rupiah
-                .Trx.ChangeAmount}}</span></div>
+        <div class="tot-row" style="font-weight:600; color:var(--caramel);"><span>Kembalian</span><span>{{rupiah .Trx.ChangeAmount}}</span></div>
         {{end}}
     </div>
 </div>
