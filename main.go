@@ -394,6 +394,7 @@ var (
 	tplPayment      = parsePage("templates/payment.html")
 	tplOrderHistory = parsePage("templates/order_history.html")
 	tplAdmin        = parseSimple("admin.html", "templates/admin.html")
+	tplAdminMembers = parseSimple("admin_members.html", "templates/admin_members.html")
 	tplPointReport  = parsePage("templates/poin_report.html")
 )
 
@@ -497,6 +498,9 @@ func initDB() error {
 	}
 	if err := initCashierSchema(pointCtx); err != nil {
 		return fmt.Errorf("gagal menyiapkan sistem kasir: %w", err)
+	}
+	if err := initMemberTierSchema(pointCtx); err != nil {
+		return fmt.Errorf("gagal menyiapkan sistem membership: %w", err)
 	}
 
 	return nil
@@ -628,6 +632,17 @@ func requireStaff(w http.ResponseWriter, r *http.Request) bool {
 		http.Error(w, "Akses ditolak. Silakan login sebagai admin atau kasir.", http.StatusForbidden)
 		return false
 	}
+	return true
+}
+
+func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	sess := getSession(r)
+
+	if sess == nil || sess.Role != "admin" {
+		http.Error(w, "Akses ditolak. Halaman ini khusus admin.", http.StatusForbidden)
+		return false
+	}
+
 	return true
 }
 
@@ -1182,6 +1197,45 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func adminMembersHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+
+	sess := getSession(r)
+
+	users, err := getAllUsers()
+	if err != nil {
+		log.Printf("Gagal mengambil data member: %v", err)
+		http.Error(w, "Gagal mengambil data member", http.StatusInternalServerError)
+		return
+	}
+
+	// Filter hanya pengguna dengan role user
+	memberUsers := make([]User, 0)
+
+	for _, u := range users {
+		if strings.EqualFold(strings.TrimSpace(u.Role), "user") {
+			memberUsers = append(memberUsers, u)
+		}
+	}
+
+	data := AdminPage{
+		PageData: PageData{
+			Title:     "Data Member",
+			ActiveNav: "adminmembers",
+			Session:   sess,
+		},
+		Users: memberUsers,
+	}
+
+	err = tplAdminMembers.ExecuteTemplate(w, "admin_members.html", data)
+	if err != nil {
+		log.Printf("Gagal membuka halaman data member: %v", err)
+		http.Error(w, "Gagal membuka halaman data member", http.StatusInternalServerError)
+	}
+}
+
 func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !requireStaff(w, r) {
 		return
@@ -1298,7 +1352,6 @@ func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		"total":    order.Total,
 	})
 }
-
 
 // ============================================================================
 // SISTEM POIN LOYALITAS (TERINTEGRASI DARI points*.go)
@@ -2967,7 +3020,6 @@ func formatRupiah(value int) string {
 	return result
 }
 
-
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -3004,6 +3056,7 @@ func main() {
 
 	// Admin Dashboard & Kasir POS (Bisa langsung dibuka di /admin)
 	mux.HandleFunc("/admin", adminHandler)
+	mux.HandleFunc("/admin/members", adminMembersHandler)
 	mux.HandleFunc("/admin/order/update", adminUpdateOrderHandler)
 	mux.HandleFunc("/admin/order/create", adminCreateOrderHandler)
 
