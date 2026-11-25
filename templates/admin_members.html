@@ -1,0 +1,717 @@
+
+{{define "admin_members.html"}}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Member - Kopiku Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --espresso: #1A0A00;
+            --dark-roast: #2C1A0E;
+            --medium: #5C3317;
+            --caramel: #C4862A;
+            --cream: #F5E6D0;
+            --milk: #FDF6EE;
+            --success: #2E7D32;
+            --success-bg: #E8F5E9;
+            --danger: #C62828;
+            --danger-bg: #FFEBEE;
+            --info: #1565C0;
+            --info-bg: #E3F2FD;
+            --sidebar-w: 260px;
+            --header-h: 64px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--milk);
+            color: var(--espresso);
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-w);
+            height: 100vh;
+            background: linear-gradient(180deg, var(--espresso), var(--dark-roast));
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transition: transform .3s ease;
+        }
+
+        .sidebar-brand {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(196,134,42,.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--caramel);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .sidebar-brand h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.3rem;
+            color: var(--cream);
+        }
+
+        .sidebar-brand small {
+            display: block;
+            color: var(--caramel);
+            font-size: .65rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 16px 12px;
+        }
+
+        .nav-label {
+            color: rgba(245,230,208,.4);
+            font-size: .65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 12px 12px 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 16px;
+            border-radius: 10px;
+            color: rgba(245,230,208,.7);
+            font-size: .9rem;
+            font-weight: 500;
+            margin-bottom: 2px;
+            text-decoration: none;
+            transition: .2s;
+        }
+
+        .nav-item:hover {
+            background: rgba(196,134,42,.1);
+            color: var(--cream);
+        }
+
+        .nav-item.active {
+            background: rgba(196,134,42,.2);
+            color: var(--caramel);
+        }
+
+        .nav-icon {
+            font-size: 1.15rem;
+            width: 24px;
+            text-align: center;
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid rgba(196,134,42,.15);
+        }
+
+        .sidebar-footer a {
+            display: flex;
+            gap: 10px;
+            color: rgba(245,230,208,.5);
+            text-decoration: none;
+            font-size: .85rem;
+            padding: 10px 12px;
+        }
+
+        /* HEADER */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-w);
+            right: 0;
+            height: var(--header-h);
+            background: white;
+            border-bottom: 1px solid rgba(92,51,23,.08);
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+        }
+
+        .header-left, .header-right, .user-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .role-badge {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: .75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .role-badge.admin {
+            background: var(--caramel);
+            color: var(--espresso);
+        }
+
+        .role-badge.kasir {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            background: var(--cream);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: var(--medium);
+        }
+
+        .user-name {
+            font-size: .9rem;
+            font-weight: 600;
+        }
+
+        .logout-link {
+            color: var(--medium);
+            text-decoration: none;
+            font-size: .85rem;
+            padding: 6px 14px;
+            border: 1px solid rgba(92,51,23,.15);
+            border-radius: 8px;
+        }
+
+        .menu-toggle {
+            display: none;
+            border: none;
+            background: none;
+            font-size: 1.4rem;
+            cursor: pointer;
+        }
+
+        /* MAIN CONTENT */
+        .main {
+            margin-left: var(--sidebar-w);
+            padding: calc(var(--header-h) + 32px) 32px 40px;
+            min-height: 100vh;
+        }
+
+        .page-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 24px;
+        }
+
+        .page-heading h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.7rem;
+            color: var(--espresso);
+            margin-bottom: 6px;
+        }
+
+        .page-heading p {
+            color: var(--medium);
+            font-size: .88rem;
+        }
+
+        .total-badge {
+            background: var(--cream);
+            color: var(--medium);
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: .88rem;
+            font-weight: 600;
+        }
+
+        /* PANEL */
+        .panel {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(26,10,0,.05);
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(92,51,23,.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .panel-header h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.1rem;
+            color: var(--espresso);
+        }
+
+        .panel-body {
+            padding: 20px 24px;
+        }
+
+        /* SEARCH */
+        .search-area {
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(92,51,23,.08);
+        }
+
+        .search-input {
+            width: 100%;
+            max-width: 400px;
+            padding: 11px 15px;
+            border: 1.5px solid rgba(92,51,23,.15);
+            border-radius: 9px;
+            font-family: 'Inter', sans-serif;
+            font-size: .85rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--caramel);
+            box-shadow: 0 0 0 3px rgba(196,134,42,.1);
+        }
+
+        /* TABLE */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .83rem;
+        }
+
+        thead th {
+            background: #FAF5EF;
+            color: var(--medium);
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .7px;
+            font-weight: 700;
+            padding: 15px 14px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        tbody td {
+            padding: 15px 14px;
+            border-bottom: 1px solid rgba(92,51,23,.07);
+            color: var(--medium);
+        }
+
+        tbody tr:hover {
+            background: #FFFCF8;
+        }
+
+        .member-name {
+            color: var(--espresso);
+            font-weight: 600;
+        }
+
+        .member-username {
+            color: var(--medium);
+        }
+
+        .member-points {
+            color: var(--espresso);
+            font-weight: 700;
+        }
+
+        /* TIER */
+        .tier-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 11px;
+            border-radius: 12px;
+            font-size: .75rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .tier-bronze {
+            background: #EFEBE9;
+            color: #5D4037;
+        }
+
+        .tier-silver {
+            background: #ECEFF1;
+            color: #455A64;
+        }
+
+        .tier-gold {
+            background: #FFF8E1;
+            color: #F57F17;
+        }
+
+        .tier-platinum {
+            background: #E8EAF6;
+            color: #283593;
+        }
+
+        /* STATUS */
+        .status-badge {
+            display: inline-block;
+            padding: 5px 11px;
+            border-radius: 20px;
+            font-size: .73rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .status-inactive {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 45px 20px !important;
+            color: var(--medium);
+        }
+
+        .sidebar-overlay {
+            display: none;
+        }
+
+        @media(max-width: 900px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .sidebar-overlay.open {
+                display: block;
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,.45);
+                z-index: 99;
+            }
+
+            .header {
+                left: 0;
+                padding: 0 18px;
+            }
+
+            .menu-toggle {
+                display: block;
+            }
+
+            .main {
+                margin-left: 0;
+                padding: calc(var(--header-h) + 24px) 18px 30px;
+            }
+        }
+
+        @media(max-width: 550px) {
+            .header-right {
+                gap: 8px;
+            }
+
+            .user-name {
+                display: none;
+            }
+
+            .logout-link {
+                display: none;
+            }
+
+            .main {
+                padding-left: 12px;
+                padding-right: 12px;
+            }
+
+            .page-heading h1 {
+                font-size: 1.35rem;
+            }
+
+            .panel-body {
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <div class="logo-icon">☕</div>
+        <div>
+            <h1>Kopiku</h1>
+            <small>Admin Panel</small>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-label">Menu Utama</div>
+
+        <a class="nav-item" href="/admin">
+            <span class="nav-icon">📊</span> Dashboard
+        </a>
+
+        <a class="nav-item" href="/kasir">
+            <span class="nav-icon">🧾</span> Kasir (POS)
+        </a>
+
+        <a class="nav-item" href="/transaksi">
+            <span class="nav-icon">📋</span> Semua Pesanan
+        </a>
+
+        <div class="nav-label">Laporan</div>
+
+        <a class="nav-item" href="/admin/poin">
+            <span class="nav-icon">📈</span> Laporan Poin
+        </a>
+
+        {{if or (eq .Session.Role "admin") (eq .Session.Role "kasir")}}
+        <div class="nav-label">Manajemen</div>
+
+        <a class="nav-item active" href="/admin/members">
+            <span class="nav-icon">👥</span> Data Member
+        </a>
+        {{end}}
+    </nav>
+
+    <div class="sidebar-footer">
+        <a href="/logout">
+            <span>🚪</span> Keluar
+        </a>
+    </div>
+</aside>
+
+<header class="header">
+    <div class="header-left">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <span class="header-title">Data Member</span>
+    </div>
+
+    <div class="header-right">
+        <span class="role-badge {{.Session.Role}}">{{.Session.Role}}</span>
+
+        <div class="user-info">
+            <div class="user-avatar">{{slice .Session.Name 0 1}}</div>
+            <span class="user-name">{{.Session.Name}}</span>
+        </div>
+
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</header>
+
+<main class="main">
+
+    <div class="page-heading">
+        <div>
+            <h1>Data Member Kopiku</h1>
+            <p>Kelola dan pantau informasi pelanggan Kopiku.</p>
+        </div>
+
+        <div class="total-badge">
+            👥 Total {{len .Users}} Member
+        </div>
+    </div>
+
+    <section class="panel">
+
+        <div class="panel-header">
+            <h2>👥 Daftar Member</h2>
+            <span style="font-size:.8rem;color:var(--medium)">
+                Informasi pelanggan terdaftar
+            </span>
+        </div>
+
+        <div class="search-area">
+            <input
+                type="search"
+                id="memberSearch"
+                class="search-input"
+                placeholder="Cari nama, username, email, atau telepon..."
+            >
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Nama</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Telepon</th>
+                        <th>Membership</th>
+                        <th>Role</th>
+                        <th>Poin</th>
+                        <th>Tier</th>
+                        <th>Status</th>
+                        <th style="text-align:center;">Aksi Staff</th>
+                    </tr>
+                </thead>
+
+                <tbody id="memberTableBody">
+                    {{range $i, $u := .Users}}
+                    <tr class="member-row">
+                        <td>{{add $i 1}}</td>
+
+                        <td>
+                            <span class="member-name">{{$u.Name}}</span>
+                        </td>
+
+                        <td>
+                            <span class="member-username">@{{$u.Username}}</span>
+                        </td>
+
+                        <td>{{$u.Email}}</td>
+                        <td>{{$u.Phone}}</td>
+
+                        <td>
+                            {{if $u.IsMember}}
+                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;background:#E8F5E9;color:#2E7D32;">
+                                ⭐ Member Aktif
+                            </span>
+                            {{else}}
+                            <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;background:#ECEFF1;color:#546E7A;">
+                                Bukan Member
+                            </span>
+                            {{end}}
+                        </td>
+
+                        <td>
+                            <span class="role-badge {{$u.Role}}">{{$u.Role}}</span>
+                        </td>
+
+                        <td>
+                            <span class="member-points">{{$u.Points}}</span>
+                        </td>
+
+                        <td>
+                            {{if lt $u.Points 500}}
+                            <span class="tier-badge tier-bronze">
+                                🥉 {{tierName $u.Points}}
+                            </span>
+                            {{else if lt $u.Points 1500}}
+                            <span class="tier-badge tier-silver">
+                                🥈 {{tierName $u.Points}}
+                            </span>
+                            {{else if lt $u.Points 3000}}
+                            <span class="tier-badge tier-gold">
+                                🥇 {{tierName $u.Points}}
+                            </span>
+                            {{else}}
+                            <span class="tier-badge tier-platinum">
+                                💎 {{tierName $u.Points}}
+                            </span>
+                            {{end}}
+                        </td>
+
+                        <td>
+                            {{if $u.IsActive}}
+                            <span class="status-badge status-active">Aktif</span>
+                            {{else}}
+                            <span class="status-badge status-inactive">Nonaktif</span>
+                            {{end}}
+                        </td>
+
+                        <td style="text-align:center;">
+                            <form method="POST" action="/admin/members/toggle" style="display:inline;">
+                                <input type="hidden" name="user_id" value="{{$u.ID}}">
+                                {{if $u.IsMember}}
+                                <button type="submit" style="background:#FFEBEE;color:#C62828;border:none;padding:5px 10px;border-radius:6px;font-size:0.72rem;font-weight:600;cursor:pointer;" onclick="return confirm('Nonaktifkan membership untuk @{{$u.Username}}?')">
+                                    Nonaktifkan
+                                </button>
+                                {{else}}
+                                <button type="submit" style="background:var(--caramel);color:#fff;border:none;padding:5px 10px;border-radius:6px;font-size:0.72rem;font-weight:600;cursor:pointer;">
+                                    + Aktifkan
+                                </button>
+                                {{end}}
+                            </form>
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr>
+                        <td colspan="11" class="empty-state">
+                            <div style="font-size:2rem;margin-bottom:10px">☕</div>
+                            <strong>Belum ada member terdaftar</strong>
+                            <p style="font-size:.8rem;margin-top:6px">
+                                Data pelanggan akan muncul di halaman ini.
+                            </p>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+
+<script>
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.getElementById('sidebarOverlay').classList.toggle('open');
+    }
+
+    const searchInput = document.getElementById('memberSearch');
+
+    searchInput.addEventListener('input', function () {
+        const keyword = this.value.toLowerCase().trim();
+
+        document.querySelectorAll('.member-row').forEach(function (row) {
+            row.style.display =
+                row.textContent.toLowerCase().includes(keyword) ? '' : 'none';
+        });
+    });
+</script>
+
+</body>
+</html>
+{{end}}

@@ -423,6 +423,7 @@ var (
 	tplPayment      = parsePage("templates/payment.html")
 	tplOrderHistory = parsePage("templates/order_history.html")
 	tplAdmin        = parseSimple("admin.html", "templates/admin.html")
+	tplAdminMembers = parseSimple("admin_members.html", "templates/admin_members.html")
 	tplPointReport  = parsePage("templates/poin_report.html")
 	tplMembership   = parsePage("templates/membership.html")
 	tplMembersList  = parsePage("templates/members.html")
@@ -440,6 +441,55 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// ===== Aturan Membership Tier =====
+
+const GoldMinimumSpending = 1500000
+
+func GetTier(memberID string, waktu time.Time) (MemberTier, int64, error) {
+	memberID = strings.TrimSpace(memberID)
+	if memberID == "" {
+		return "", 0, fmt.Errorf("ID member tidak boleh kosong")
+	}
+	waktuMulai := waktu.AddDate(0, -3, 0)
+	var totalBelanja int64
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT COALESCE(SUM(subtotal - voucher_discount), 0)
+		 FROM transactions
+		 WHERE member_id = ? AND status = 'paid' AND created_at >= ? AND created_at <= ?`,
+		memberID, waktuMulai, waktu,
+	).Scan(&totalBelanja)
+	if err != nil {
+		return "", 0, fmt.Errorf("gagal menghitung total belanja member: %w", err)
+	}
+	if totalBelanja >= GoldMinimumSpending {
+		return TierGold, totalBelanja, nil
+	}
+	return TierSilver, totalBelanja, nil
+}
+
+func initMemberTierSchema(ctx context.Context) error {
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS member_tier_history (
+		id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+		member_id VARCHAR(64) NOT NULL,
+		previous_tier VARCHAR(20) DEFAULT NULL,
+		new_tier VARCHAR(20) NOT NULL,
+		total_spending BIGINT NOT NULL DEFAULT 0,
+		period_start DATETIME NOT NULL,
+		period_end DATETIME NOT NULL,
+		evaluated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (id),
+		KEY idx_member_tier_member (member_id, evaluated_at),
+		KEY idx_member_tier_level (new_tier, evaluated_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
+	_, err := db.ExecContext(ctx, createTableSQL)
+	if err != nil {
+		return fmt.Errorf("gagal membuat tabel member_tier_history: %w", err)
+	}
+	return nil
 }
 
 // initDB membuka koneksi MySQL menggunakan konfigurasi environment variable.
@@ -531,6 +581,9 @@ func initDB() error {
 	}
 	if err := initCashierSchema(pointCtx); err != nil {
 		return fmt.Errorf("gagal menyiapkan sistem kasir: %w", err)
+	}
+	if err := initMemberTierSchema(pointCtx); err != nil {
+		return fmt.Errorf("gagal menyiapkan sistem membership: %w", err)
 	}
 
 	// Tambah kolom membership ke tabel users bila belum ada (idempoten)
@@ -694,6 +747,17 @@ func requireStaff(w http.ResponseWriter, r *http.Request) bool {
 		http.Error(w, "Akses ditolak. Silakan login sebagai admin atau kasir.", http.StatusForbidden)
 		return false
 	}
+	return true
+}
+
+func requireAdmin(w http.ResponseWriter, r *http.Request) bool {
+	sess := getSession(r)
+
+	if sess == nil || sess.Role != "admin" {
+		http.Error(w, "Akses ditolak. Halaman ini khusus admin.", http.StatusForbidden)
+		return false
+	}
+
 	return true
 }
 
@@ -1336,6 +1400,48 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func adminMembersHandler(w http.ResponseWriter, r *http.Request) {
+	if !requireStaff(w, r) {
+		return
+	}
+
+	sess := getSession(r)
+
+	users, err := getAllUsers()
+	if err != nil {
+		log.Printf("Gagal mengambil data member: %v", err)
+		http.Error(w, "Gagal mengambil data member", http.StatusInternalServerError)
+		return
+	}
+
+	// Filter hanya pengguna dengan role user
+	memberUsers := make([]User, 0)
+
+	for _, u := range users {
+		if strings.EqualFold(strings.TrimSpace(u.Role), "user") {
+			if pts, err := ActivePointBalance(u.ID); err == nil {
+				u.Points = pts
+			}
+			memberUsers = append(memberUsers, u)
+		}
+	}
+
+	data := AdminPage{
+		PageData: PageData{
+			Title:     "Data Member",
+			ActiveNav: "adminmembers",
+			Session:   sess,
+		},
+		Users: memberUsers,
+	}
+
+	err = tplAdminMembers.ExecuteTemplate(w, "admin_members.html", data)
+	if err != nil {
+		log.Printf("Gagal membuka halaman data member: %v", err)
+		http.Error(w, "Gagal membuka halaman data member", http.StatusInternalServerError)
+	}
+}
+
 func adminUpdateOrderHandler(w http.ResponseWriter, r *http.Request) {
 	if !requireStaff(w, r) {
 		return
@@ -1451,103 +1557,6 @@ func adminCreateOrderHandler(w http.ResponseWriter, r *http.Request) {
 		"order_id": order.ID,
 		"total":    order.Total,
 	})
-}
-
-// ===== Member List & Management Handlers (Admin & Kasir) =====
-
-func adminMembersHandler(w http.ResponseWriter, r *http.Request) {
-	if !requireStaff(w, r) {
-		return
-	}
-
-	sess := getSession(r)
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	tierFilter := strings.TrimSpace(r.URL.Query().Get("tier"))
-
-	sqlQuery := `
-		SELECT id, name, username, COALESCE(email,''), phone, role, points, is_active,
-		       COALESCE(is_member,0), member_since
-		FROM users
-		WHERE role = 'user'
-	`
-	var args []any
-	if query != "" {
-		sqlQuery += ` AND (name LIKE ? OR username LIKE ? OR phone LIKE ? OR email LIKE ?)`
-		like := "%" + query + "%"
-		args = append(args, like, like, like, like)
-	}
-	sqlQuery += ` ORDER BY is_member DESC, member_since DESC, points DESC`
-
-	rows, err := db.QueryContext(context.Background(), sqlQuery, args...)
-	if err != nil {
-		log.Printf("Gagal membaca daftar member: %v", err)
-		http.Error(w, "Gagal memuat data member", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	var members []User
-	totalPoints := 0
-	bronzeCount, silverCount, goldCount, platCount := 0, 0, 0, 0
-
-	for rows.Next() {
-		var u User
-		var isMember bool
-		var memberSince sql.NullTime
-		if err := rows.Scan(&u.ID, &u.Name, &u.Username, &u.Email, &u.Phone, &u.Role, &u.Points, &u.IsActive, &isMember, &memberSince); err != nil {
-			continue
-		}
-		u.IsMember = isMember
-		if memberSince.Valid {
-			u.MemberSince = &memberSince.Time
-		}
-
-		if pts, err := ActivePointBalance(u.ID); err == nil {
-			u.Points = pts
-		}
-
-		tName := funcs["tierName"].(func(int) string)(u.Points)
-		switch tName {
-		case "Platinum":
-			platCount++
-		case "Gold":
-			goldCount++
-		case "Silver":
-			silverCount++
-		default:
-			bronzeCount++
-		}
-
-		if tierFilter != "" && !strings.EqualFold(tierFilter, tName) {
-			continue
-		}
-
-		totalPoints += u.Points
-		members = append(members, u)
-	}
-
-	page := MembersListPage{
-		PageData: PageData{
-			Title:     "Daftar Member Kopiku",
-			ActiveNav: "adminmembers",
-			Session:   sess,
-			Flash:     getFlash(w, r),
-		},
-		Members:     members,
-		Total:       len(members),
-		TotalPoints: totalPoints,
-		BronzeCount: bronzeCount,
-		SilverCount: silverCount,
-		GoldCount:   goldCount,
-		PlatCount:   platCount,
-		Query:       query,
-		TierFilter:  tierFilter,
-	}
-
-	if err := tplMembersList.ExecuteTemplate(w, "layout", page); err != nil {
-		log.Printf("Gagal render template members list: %v", err)
-		http.Error(w, "Terjadi kesalahan internal", http.StatusInternalServerError)
-	}
 }
 
 func adminToggleMemberHandler(w http.ResponseWriter, r *http.Request) {
