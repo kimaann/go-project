@@ -1,0 +1,417 @@
+{{define "content"}}
+<!-- Kalkulator Keranjang — modul Mesin Hitung Keranjang (Aulia Shafira Haeny).
+     Semua angka dihitung server lewat POST /api/kasir/cart/preview (CalculateCart).
+     Halaman ini hanya pratinjau: tidak menyimpan transaksi, tidak memakai voucher, tidak memotong poin. -->
+<style>
+    .kr-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 1000px) { .kr-layout { grid-template-columns: 1fr; } }
+
+    .kr-card { background: #fff; border-radius: 14px; box-shadow: var(--shadow); padding: 20px; margin-bottom: 18px; }
+    .kr-card h3 { font-family: 'Playfair Display', serif; font-size: 17px; margin-bottom: 12px; color: var(--dark-roast); }
+    .kr-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+    .kr-input { width: 100%; padding: 10px 14px; border: 1.5px solid #e2d5c8; border-radius: 10px; font-family: 'Inter', sans-serif; font-size: 14px; background: #fff; }
+    .kr-input:focus { outline: none; border-color: var(--caramel); }
+    .kr-row { display: flex; gap: 8px; }
+    .kr-field { margin-bottom: 14px; }
+    .kr-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    .kr-pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .kr-pill { padding: 6px 14px; border-radius: 999px; border: 1.5px solid #e2d5c8; background: #fff; cursor: pointer; font-size: 13px; font-family: 'Inter', sans-serif; }
+    .kr-pill.active { background: var(--caramel); color: #fff; border-color: var(--caramel); }
+
+    .kr-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 340px; overflow-y: auto; padding: 2px; }
+    .kr-tile { border: 1.5px solid #eee1d3; border-radius: 12px; padding: 10px 12px; cursor: pointer; background: var(--milk); transition: .15s; user-select: none; }
+    .kr-tile:hover { border-color: var(--caramel); transform: translateY(-1px); }
+    .kr-tile .n { font-weight: 600; font-size: 13px; }
+    .kr-tile .c { font-size: 11px; color: var(--text-muted); }
+    .kr-tile .p { font-size: 13px; color: var(--caramel); font-weight: 600; margin-top: 4px; }
+
+    .kr-cart-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed #eadfd1; }
+    .kr-cart-row:last-child { border-bottom: none; }
+    .kr-qty { display: flex; align-items: center; gap: 6px; }
+    .kr-qty button { width: 26px; height: 26px; border-radius: 8px; border: 1.5px solid #e2d5c8; background: #fff; cursor: pointer; font-weight: 700; }
+    .kr-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(196,134,42,.15); color: var(--medium); margin-right: 4px; }
+    .kr-tag.free { background: rgba(46,125,50,.15); color: #2e7d32; }
+
+    .kr-step { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f1e8dc; font-size: 14px; }
+    .kr-step .no { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: var(--cream); color: var(--medium); text-align: center; line-height: 22px; font-size: 12px; font-weight: 700; margin-right: 8px; }
+    .kr-step small { display: block; color: var(--text-muted); font-size: 11.5px; margin-left: 30px; }
+    .kr-step.minus .v { color: #2e7d32; }
+    .kr-total { display: flex; justify-content: space-between; padding: 14px 0 4px; font-size: 20px; font-weight: 700; color: var(--dark-roast); }
+    .kr-earn { margin-top: 8px; padding: 10px 14px; border-radius: 10px; background: var(--cream); color: var(--medium); font-weight: 600; display: flex; justify-content: space-between; }
+
+    .kr-alert { display: none; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: 13px; background: #fdecea; color: #c62828; }
+    .kr-warn { margin-top: 10px; font-size: 12.5px; color: #b26a00; }
+    .kr-note { background: #fff8e1; border: 1px solid #ffe082; color: #8a6d00; padding: 10px 14px; border-radius: 10px; font-size: 13px; margin-bottom: 18px; }
+    .kr-member-box { display: none; justify-content: space-between; align-items: center; background: var(--cream); padding: 10px 14px; border-radius: 10px; }
+    .kr-dd { display: none; border: 1.5px solid #e2d5c8; border-radius: 10px; background: #fff; margin-top: 4px; max-height: 200px; overflow-y: auto; }
+    .kr-dd div { padding: 8px 12px; cursor: pointer; font-size: 13px; }
+    .kr-dd div:hover { background: var(--milk); }
+    .kr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .kr-table th, .kr-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid #f1e8dc; }
+    .kr-table td.r, .kr-table th.r { text-align: right; }
+    .kr-muted { color: var(--text-muted); font-size: 13px; }
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+    <div>
+        <h1 class="section-heading">🧮 Kalkulator Keranjang</h1>
+        <p class="section-sub" style="margin-bottom:0;">Pratinjau harga sesuai urutan perhitungan: promo produk → min. belanja atau voucher → tukar poin → poin didapat. Dihitung di server, tidak menyimpan transaksi.</p>
+    </div>
+    <a href="/kasir" class="btn btn-outline">🧾 Ke Kasir POS</a>
+</div>
+
+{{if .DemoPromos}}
+<div class="kr-note">Mode demo promo aktif (<code>CART_DEMO_PROMOS=1</code>): beli 2 gratis 1 Kopi, Happy Hour Makanan 20% (14.00–17.00), Promo Malam Non-Kopi 30% (22.00–02.00), dan potongan Rp15.000 untuk belanja ≥ Rp150.000. Ubah "Waktu simulasi" untuk mencoba jam promo.</div>
+{{end}}
+
+<div class="kr-layout" id="krApp" data-rupiah-per-point="{{.RupiahPerPoint}}">
+    <!-- KIRI: produk + keranjang -->
+    <div>
+        <div class="kr-card">
+            <h3>Pilih Produk</h3>
+            <input type="text" id="krSearch" class="kr-input" placeholder="🔍 Cari nama menu..." oninput="krFilter()">
+            <div class="kr-pills">
+                <button type="button" class="kr-pill active" onclick="krCategory('ALL', this)">Semua</button>
+                <button type="button" class="kr-pill" onclick="krCategory('Kopi', this)">☕ Kopi</button>
+                <button type="button" class="kr-pill" onclick="krCategory('Non-Kopi', this)">🍵 Non-Kopi</button>
+                <button type="button" class="kr-pill" onclick="krCategory('Makanan', this)">🥐 Makanan</button>
+            </div>
+            <div class="kr-products" id="krProducts">
+                {{range .Products}}
+                <div class="kr-tile" data-id="{{.ID}}" data-name="{{.Name}}" data-category="{{.Category}}" data-price="{{.Price}}" onclick="krAdd(this)">
+                    <div class="n">{{.Icon}} {{.Name}}</div>
+                    <div class="c">{{.Category}}</div>
+                    <div class="p">{{rupiah .Price}}</div>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <div class="kr-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <h3 style="margin:0;">🛒 Keranjang</h3>
+                <button type="button" onclick="krClear()" style="background:none;border:none;color:#c62828;font-size:12px;cursor:pointer;">Kosongkan</button>
+            </div>
+            <div id="krCart"><p class="kr-muted">Belum ada produk dipilih.</p></div>
+        </div>
+    </div>
+
+    <!-- KANAN: pengaturan + hasil hitung -->
+    <div>
+        <div class="kr-card">
+            <div id="krAlert" class="kr-alert"></div>
+            <h3>Pengaturan</h3>
+
+            <div class="kr-grid2 kr-field">
+                <div>
+                    <label class="kr-label" for="krBranch">Cabang</label>
+                    <select id="krBranch" class="kr-input" onchange="krRecalc()">
+                        {{range .Branches}}<option value="{{.Name}}">{{.Name}}</option>{{end}}
+                    </select>
+                </div>
+                <div>
+                    <label class="kr-label" for="krAt">Waktu simulasi (opsional)</label>
+                    <input type="datetime-local" id="krAt" class="kr-input" onchange="krRecalc()">
+                </div>
+            </div>
+
+            <div class="kr-field">
+                <label class="kr-label">Member</label>
+                <div id="krMemberSearch">
+                    <input type="text" id="krMemberInput" class="kr-input" placeholder="Cari nama, username, atau no. HP member..." oninput="krSearchMember(this.value)">
+                    <div id="krMemberDd" class="kr-dd"></div>
+                </div>
+                <div id="krMemberBox" class="kr-member-box">
+                    <div>
+                        <strong id="krMemName"></strong> <span id="krMemUser" class="kr-muted"></span><br>
+                        <small class="kr-muted">Saldo aktif: <strong id="krMemPts">0</strong> poin</small>
+                    </div>
+                    <button type="button" class="kr-pill" onclick="krClearMember()">✕</button>
+                </div>
+            </div>
+
+            <div class="kr-field">
+                <label class="kr-label" for="krVoucher">Kode voucher</label>
+                <div class="kr-row">
+                    <input type="text" id="krVoucher" class="kr-input" placeholder="Contoh: NEWMENU30" style="text-transform:uppercase;" onkeydown="if(event.key==='Enter'){krApplyVoucher();}">
+                    <button type="button" class="btn btn-outline" style="padding:8px 14px;" onclick="krApplyVoucher()">Cek</button>
+                </div>
+                <small id="krVoucherStatus" style="display:block; margin-top:4px; color:var(--text-muted);"></small>
+            </div>
+
+            <div class="kr-grid2 kr-field">
+                <div>
+                    <label class="kr-label" for="krChoice">Min. belanja / voucher</label>
+                    <select id="krChoice" class="kr-input" onchange="krRecalc()">
+                        <option value="AUTO">Otomatis (paling untung)</option>
+                        <option value="MIN_SPEND">Pilih min. belanja</option>
+                        <option value="VOUCHER">Pilih voucher</option>
+                    </select>
+                </div>
+                <div id="krPointsWrap" style="display:none;">
+                    <label class="kr-label" for="krPoints">Tukar poin (1 poin = {{rupiah .RupiahPerPoint}})</label>
+                    <div class="kr-row">
+                        <input type="number" id="krPoints" class="kr-input" min="0" value="0" oninput="krRecalc()">
+                        <button type="button" class="btn btn-outline" style="padding:8px 12px;" onclick="krMaxPoints()">Maks</button>
+                    </div>
+                    <small id="krPointsHint" class="kr-muted"></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="kr-card">
+            <h3>Rincian Perhitungan</h3>
+            <div class="kr-step"><span><span class="no">1</span>Subtotal</span><span class="v" id="krSub">Rp0</span></div>
+            <div class="kr-step minus"><span><span class="no">2</span>Promo produk<small id="krProductNote">Diskon persen &amp; beli 2 gratis 1</small></span><span class="v" id="krProd">-Rp0</span></div>
+            <div class="kr-step minus"><span><span class="no">3</span><span id="krSpendLabel">Min. belanja / voucher</span><small>Dipilih salah satu, tidak digabung</small></span><span class="v" id="krSpend">-Rp0</span></div>
+            <div class="kr-step"><span><span class="no">4</span>Total setelah promo</span><span class="v" id="krAfter">Rp0</span></div>
+            <div class="kr-step minus"><span><span class="no">5</span>Tukar poin<small id="krPtsNote">Maks 50% dari total setelah promo</small></span><span class="v" id="krPtsDisc">-Rp0</span></div>
+            <div class="kr-total"><span>6 · Total bayar</span><span id="krPay">Rp0</span></div>
+            <div class="kr-earn"><span>7 · ⭐ Poin didapat</span><span id="krEarn">-</span></div>
+            <div class="kr-warn" id="krWarn"></div>
+        </div>
+
+        <div class="kr-card">
+            <h3>Potongan per Promo</h3>
+            <div id="krPromos"><p class="kr-muted">Belum ada promo yang berlaku.</p></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let krCurrentCat = 'ALL';
+    let krCartItems = [];      // [{product_id, name, price, qty}]
+    let krMember = null;       // {id, name, username, active_points}
+    let krVoucherCode = '';
+    let krLast = null;
+    let krTimer = null;
+    let krSeq = 0;
+    let krMemTimer = null;
+
+    const krFmt = n => 'Rp' + Math.max(0, Math.round(n || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const krMinus = n => '-' + krFmt(n);
+    const krEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const krSet = (id, t) => { document.getElementById(id).textContent = t; };
+
+    function krAlert(msg) {
+        const el = document.getElementById('krAlert');
+        el.textContent = msg || '';
+        el.style.display = msg ? 'block' : 'none';
+    }
+
+    // ----- Produk & keranjang -----
+    function krCategory(cat, btn) {
+        krCurrentCat = cat;
+        document.querySelectorAll('.kr-pill').forEach(p => { if (p.parentElement.classList.contains('kr-pills')) p.classList.remove('active'); });
+        btn.classList.add('active');
+        krFilter();
+    }
+
+    function krFilter() {
+        const q = document.getElementById('krSearch').value.toLowerCase().trim();
+        document.querySelectorAll('.kr-tile').forEach(t => {
+            const ok = (krCurrentCat === 'ALL' || t.dataset.category === krCurrentCat) && t.dataset.name.toLowerCase().includes(q);
+            t.style.display = ok ? 'block' : 'none';
+        });
+    }
+
+    function krAdd(el) {
+        krAlert('');
+        const id = parseInt(el.dataset.id, 10);
+        const ex = krCartItems.find(c => c.product_id === id);
+        if (ex) { ex.qty += 1; } else { krCartItems.push({product_id: id, name: el.dataset.name, price: parseInt(el.dataset.price, 10), qty: 1}); }
+        krRender();
+    }
+
+    function krQty(id, d) {
+        const i = krCartItems.findIndex(c => c.product_id === id);
+        if (i < 0) return;
+        krCartItems[i].qty += d;
+        if (krCartItems[i].qty <= 0) krCartItems.splice(i, 1);
+        krRender();
+    }
+
+    function krClear() { krCartItems = []; krRender(); }
+
+    // Baris keranjang: memakai rincian server (gratis/diskon) bila sudah ada.
+    function krRender() {
+        const box = document.getElementById('krCart');
+        if (krCartItems.length === 0) {
+            box.innerHTML = '<p class="kr-muted">Belum ada produk dipilih.</p>';
+        } else {
+            const lines = {};
+            if (krLast) krLast.lines.forEach(l => { lines[l.product_id] = l; });
+            box.innerHTML = krCartItems.map(it => {
+                const l = lines[it.product_id];
+                const tags = l ? (l.free_qty > 0 ? '<span class="kr-tag free">Gratis ' + l.free_qty + '</span>' : '') +
+                    (l.promos || []).filter(p => p.type !== 'BUY2GET1').map(p => '<span class="kr-tag">' + krEsc(p.name) + ' −' + krFmt(p.amount) + '</span>').join('') : '';
+                const total = l ? l.total : it.price * it.qty;
+                return '<div class="kr-cart-row"><div><div style="font-weight:600;">' + krEsc(it.name) + '</div>' +
+                    '<small class="kr-muted">' + krFmt(it.price) + ' × ' + it.qty + '</small><div>' + tags + '</div></div>' +
+                    '<div class="kr-qty"><button type="button" onclick="krQty(' + it.product_id + ',-1)">−</button><b>' + it.qty +
+                    '</b><button type="button" onclick="krQty(' + it.product_id + ',1)">+</button>' +
+                    '<strong style="min-width:84px;text-align:right;">' + krFmt(total) + '</strong></div></div>';
+            }).join('');
+        }
+        krRecalc();
+    }
+
+    // ----- Member -----
+    function krSearchMember(q) {
+        clearTimeout(krMemTimer);
+        const dd = document.getElementById('krMemberDd');
+        if (q.trim().length < 2) { dd.style.display = 'none'; return; }
+        krMemTimer = setTimeout(async () => {
+            try {
+                const res = await fetch('/api/kasir/members?q=' + encodeURIComponent(q.trim()));
+                if (!res.ok) return;
+                const list = await res.json();
+                window.krMemberResults = list;
+                dd.innerHTML = list.length === 0 ? '<div class="kr-muted">Member tidak ditemukan</div>' :
+                    list.map((m, i) => '<div onclick="krPickMember(' + i + ')"><strong>' + krEsc(m.name) + '</strong> (@' + krEsc(m.username) + ') · ' +
+                        krEsc(m.phone) + '<br><small class="kr-muted">⭐ ' + m.active_points + ' poin</small></div>').join('');
+                dd.style.display = 'block';
+            } catch (e) { /* abaikan */ }
+        }, 250);
+    }
+
+    function krPickMember(i) {
+        krMember = window.krMemberResults[i];
+        document.getElementById('krMemberDd').style.display = 'none';
+        document.getElementById('krMemberSearch').style.display = 'none';
+        document.getElementById('krMemberBox').style.display = 'flex';
+        krSet('krMemName', krMember.name);
+        krSet('krMemUser', '@' + krMember.username);
+        krSet('krMemPts', krMember.active_points);
+        document.getElementById('krPointsWrap').style.display = 'block';
+        document.getElementById('krPoints').value = 0;
+        krRecalc();
+    }
+
+    function krClearMember() {
+        krMember = null;
+        document.getElementById('krMemberBox').style.display = 'none';
+        document.getElementById('krMemberSearch').style.display = 'block';
+        document.getElementById('krMemberInput').value = '';
+        document.getElementById('krPointsWrap').style.display = 'none';
+        document.getElementById('krPoints').value = 0;
+        krRecalc();
+    }
+
+    // ----- Voucher & poin -----
+    function krApplyVoucher() {
+        krAlert('');
+        krVoucherCode = document.getElementById('krVoucher').value.trim().toUpperCase();
+        if (!krVoucherCode) krSet('krVoucherStatus', '');
+        krRun();
+    }
+
+    function krMaxPoints() {
+        if (!krMember) return;
+        document.getElementById('krPoints').value = krLast ? krLast.max_redeemable_points : 0;
+        krRecalc();
+    }
+
+    // ----- Panggil server -----
+    function krRecalc() {
+        clearTimeout(krTimer);
+        krTimer = setTimeout(krRun, 150);
+    }
+
+    async function krRun() {
+        const seq = ++krSeq;
+        if (krCartItems.length === 0) {
+            krLast = null;
+            krShow(null);
+            return;
+        }
+        let pts = 0;
+        if (krMember) {
+            pts = parseInt(document.getElementById('krPoints').value || '0', 10);
+            if (isNaN(pts) || pts < 0) pts = 0;
+        }
+        const body = {
+            branch: document.getElementById('krBranch').value,
+            member_id: krMember ? krMember.id : '',
+            voucher_code: krVoucherCode,
+            discount_choice: document.getElementById('krChoice').value,
+            points_used: pts,
+            items: krCartItems.map(c => ({product_id: c.product_id, qty: c.qty}))
+        };
+        const at = document.getElementById('krAt').value;
+        if (at) body.at = at;
+
+        try {
+            const res = await fetch('/api/kasir/cart/preview', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (seq !== krSeq) return;
+            if (!res.ok) { krAlert(data.message || 'Gagal menghitung keranjang.'); return; }
+            krAlert('');
+            krLast = data.cart;
+            krShow(krLast);
+        } catch (e) {
+            if (seq === krSeq) krAlert('Terjadi gangguan koneksi ke server.');
+        }
+    }
+
+    function krShow(c) {
+        if (!c) {
+            ['krSub', 'krAfter', 'krPay'].forEach(id => krSet(id, 'Rp0'));
+            ['krProd', 'krSpend', 'krPtsDisc'].forEach(id => krSet(id, '-Rp0'));
+            krSet('krSpendLabel', 'Min. belanja / voucher');
+            krSet('krEarn', '-'); krSet('krWarn', ''); krSet('krPointsHint', '');
+            document.getElementById('krPromos').innerHTML = '<p class="kr-muted">Belum ada promo yang berlaku.</p>';
+            if (krVoucherCode) krSet('krVoucherStatus', 'Voucher diperiksa setelah ada produk di keranjang.');
+            const box = document.getElementById('krCart');
+            if (krCartItems.length === 0) box.innerHTML = '<p class="kr-muted">Belum ada produk dipilih.</p>';
+            return;
+        }
+        krSet('krSub', krFmt(c.subtotal));
+        krSet('krProd', krMinus(c.product_promo_discount));
+        krSet('krSpend', krMinus(c.spend_or_voucher_discount));
+        krSet('krSpendLabel', c.spend_or_voucher_kind === 'VOUCHER' ? 'Voucher (' + c.voucher_code + ')' :
+            c.spend_or_voucher_kind === 'MIN_SPEND' ? 'Potongan min. belanja' : 'Min. belanja / voucher');
+        krSet('krAfter', krFmt(c.total_after_promo));
+        krSet('krPtsDisc', krMinus(c.points_discount));
+        krSet('krPay', krFmt(c.total_payable));
+        krSet('krEarn', krMember ? '+' + c.points_earned + ' poin' : '- (bukan member)');
+        krSet('krWarn', (c.warnings || []).join(' '));
+
+        if (krMember) {
+            krSet('krPointsHint', 'Maks ' + c.max_redeemable_points + ' poin untuk transaksi ini.');
+            const input = document.getElementById('krPoints');
+            if (c.points_adjusted && parseInt(input.value || '0', 10) !== c.points_redeemed) input.value = c.points_redeemed;
+        }
+        if (krVoucherCode) {
+            const st = document.getElementById('krVoucherStatus');
+            st.style.color = c.voucher_applied ? '#2e7d32' : '#c62828';
+            st.textContent = (c.voucher_applied ? '✅ ' : '❌ ') + (c.voucher_message || 'Voucher tidak dipakai.');
+        }
+
+        const promos = c.promos || [];
+        document.getElementById('krPromos').innerHTML = promos.length === 0 ? '<p class="kr-muted">Tidak ada promo yang berlaku pada keranjang ini.</p>' :
+            '<table class="kr-table"><tr><th>Promo</th><th>Jenis</th><th class="r">Potongan</th></tr>' +
+            promos.map(p => '<tr><td>' + krEsc(p.name) + (p.code ? ' <span class="kr-tag">' + krEsc(p.code) + '</span>' : '') + '</td><td>' + krEsc(p.type) +
+                '</td><td class="r">' + krMinus(p.amount) + '</td></tr>').join('') + '</table>';
+
+        // perbarui baris keranjang dengan rincian gratis/diskon dari server (tanpa memicu hitung ulang)
+        const box = document.getElementById('krCart');
+        const lines = {};
+        c.lines.forEach(l => { lines[l.product_id] = l; });
+        box.innerHTML = krCartItems.map(it => {
+            const l = lines[it.product_id];
+            const tags = l ? (l.free_qty > 0 ? '<span class="kr-tag free">Gratis ' + l.free_qty + '</span>' : '') +
+                (l.promos || []).filter(p => p.type !== 'BUY2GET1').map(p => '<span class="kr-tag">' + krEsc(p.name) + ' −' + krFmt(p.amount) + '</span>').join('') : '';
+            const total = l ? l.total : it.price * it.qty;
+            return '<div class="kr-cart-row"><div><div style="font-weight:600;">' + krEsc(it.name) + '</div>' +
+                '<small class="kr-muted">' + krFmt(it.price) + ' × ' + it.qty + '</small><div>' + tags + '</div></div>' +
+                '<div class="kr-qty"><button type="button" onclick="krQty(' + it.product_id + ',-1)">−</button><b>' + it.qty +
+                '</b><button type="button" onclick="krQty(' + it.product_id + ',1)">+</button>' +
+                '<strong style="min-width:84px;text-align:right;">' + krFmt(total) + '</strong></div></div>';
+        }).join('');
+    }
+</script>
+{{end}}
